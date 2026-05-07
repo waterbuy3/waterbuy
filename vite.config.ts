@@ -5,55 +5,11 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { VitePWA } from "vite-plugin-pwa";
-
-const isProd = process.env.NODE_ENV === "production";
 
 export default defineConfig({
   vite: {
     server: {
       port: 8080,
     },
-    plugins: [
-      // Only enable PWA in production builds — Lovable's preview sandbox
-      // does not support service workers and the plugin breaks their dev environment.
-      isProd && VitePWA({
-        registerType: "autoUpdate",
-        manifest: false,
-        injectRegister: "auto",
-        workbox: {
-          globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/firestore\.googleapis\.com/,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "firebase-cache",
-                networkTimeoutSeconds: 3,
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/firebase\.googleapis\.com/,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "firebase-auth-cache",
-                networkTimeoutSeconds: 3,
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "image-cache",
-                expiration: { maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-          ],
-        },
-      }),
-    ],
   },
 });
