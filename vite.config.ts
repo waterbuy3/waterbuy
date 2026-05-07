@@ -7,13 +7,17 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+const isProd = process.env.NODE_ENV === "production";
+
 export default defineConfig({
   vite: {
     server: {
       port: 8080,
     },
     plugins: [
-      VitePWA({
+      // Only enable PWA in production builds — Lovable's preview sandbox
+      // does not support service workers and the plugin breaks their dev environment.
+      isProd && VitePWA({
         registerType: "autoUpdate",
         manifest: false,
         injectRegister: "auto",
