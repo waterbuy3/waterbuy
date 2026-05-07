@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { products, categories } from "@/lib/data";
-import { CalendarDays, MapPin, Package, Clock, CheckCircle2, Droplets } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { products as FALLBACK_PRODUCTS, categories as FALLBACK_CATS, type Product, type Category } from "@/lib/data";
+import { subscribeProducts, subscribeCategories } from "@/lib/firebase";
+import { MapPin, Package, CheckCircle2, Droplets, CalendarDays } from "lucide-react";
+import { CalendarScheduler } from "@/components/CalendarScheduler";
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({
@@ -17,14 +19,26 @@ export const Route = createFileRoute("/schedule")({
 
 function SchedulePage() {
   const [step, setStep] = useState(1);
+  const [products,   setProducts]   = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATS);
+
+  useEffect(() => {
+    const unsubP = subscribeProducts((docs) => { if (docs.length > 0) setProducts(docs as Product[]); });
+    const unsubC = subscribeCategories((docs) => { if (docs.length > 0) setCategories(docs as Category[]); });
+    return () => { unsubP(); unsubC(); };
+  }, []);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTime, setSelectedTime] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [frequency, setFrequency] = useState("weekly");
+  
+  // Schedule state
+  const [scheduleData, setScheduleData] = useState<{ date: Date | null; frequency: string; slot: string }>({
+    date: null,
+    frequency: "",
+    slot: "",
+  });
+
   const [submitted, setSubmitted] = useState(false);
 
   const filteredProducts = selectedCategory === "all"
@@ -33,280 +47,230 @@ function SchedulePage() {
 
   const selectedProductData = products.find((p) => p.id === selectedProduct);
 
-  const timeSlots = [
-    "6:00 AM - 8:00 AM",
-    "8:00 AM - 10:00 AM",
-    "10:00 AM - 12:00 PM",
-    "12:00 PM - 2:00 PM",
-    "2:00 PM - 4:00 PM",
-    "4:00 PM - 6:00 PM",
-    "6:00 PM - 8:00 PM",
-  ];
-
   if (submitted) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
-          <CheckCircle2 className="h-10 w-10 text-success" />
+      <div className="mx-auto max-w-md px-4 py-20 text-center">
+        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-success/10 border-4 border-success/20">
+          <CheckCircle2 className="h-12 w-12 text-success" />
         </div>
-        <h1 className="text-3xl font-bold text-foreground">Delivery Scheduled!</h1>
-        <p className="mt-3 text-lg text-muted-foreground">
-          Your {selectedProductData?.name} ({quantity}x) will be delivered on {selectedDate} during {selectedTime}.
+        <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Delivery Scheduled!</h1>
+        <p className="mt-3 text-muted-foreground font-medium">
+          Your water is on its way.
         </p>
-        {isRecurring && (
-          <p className="mt-2 text-sm text-primary font-medium">
-            Recurring {frequency} delivery has been set up.
-          </p>
-        )}
-        <div className="mt-8 rounded-xl bg-muted/50 p-6 text-left">
-          <h3 className="font-semibold text-foreground mb-3">Delivery Details</h3>
-          <div className="space-y-2 text-sm">
-            <p className="text-muted-foreground"><strong className="text-foreground">Product:</strong> {selectedProductData?.name} — {selectedProductData?.size}</p>
-            <p className="text-muted-foreground"><strong className="text-foreground">Quantity:</strong> {quantity}</p>
-            <p className="text-muted-foreground"><strong className="text-foreground">Address:</strong> {address}</p>
-            <p className="text-muted-foreground"><strong className="text-foreground">Total:</strong> ${((selectedProductData?.price || 0) * quantity).toFixed(2)}</p>
+        
+        <div className="mt-8 rounded-3xl glass-card p-6 text-left shadow-water border-primary/20">
+          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border/50">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Droplets className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground">{selectedProductData?.name}</h3>
+              <p className="text-xs text-muted-foreground">{selectedProductData?.size} × {quantity}</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Frequency</span>
+              <span className="font-bold text-primary">{scheduleData.frequency}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Starting On</span>
+              <span className="font-medium text-foreground">{scheduleData.date?.toLocaleDateString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Time Slot</span>
+              <span className="font-medium text-foreground">{scheduleData.slot}</span>
+            </div>
+            <div className="mt-4 pt-4 border-t border-border/50 flex justify-between">
+              <span className="font-bold text-foreground">Total per delivery</span>
+              <span className="font-extrabold text-primary">₹{((selectedProductData?.price || 0) * quantity).toFixed(2)}</span>
+            </div>
           </div>
         </div>
-        <Button variant="water" size="lg" className="mt-6" onClick={() => { setSubmitted(false); setStep(1); setSelectedProduct(null); }}>
-          Schedule Another Delivery
+        
+        <Button variant="hero" size="lg" className="mt-8 w-full rounded-full h-14 text-base shadow-water" onClick={() => { setSubmitted(false); setStep(1); setSelectedProduct(null); }}>
+          Done
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Schedule Delivery</h1>
-        <p className="mt-1 text-muted-foreground">Plan your water delivery in 3 simple steps</p>
+    <div className="mx-auto max-w-2xl px-4 py-8 pb-24 sm:pb-8">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-extrabold text-foreground">Schedule Delivery</h1>
+        <p className="mt-2 text-muted-foreground">Set up your automated hydration</p>
       </div>
 
-      {/* Progress */}
-      <div className="mb-8 flex items-center gap-2">
-        {[
-          { num: 1, label: "Select Product", icon: Package },
-          { num: 2, label: "Choose Time", icon: CalendarDays },
-          { num: 3, label: "Delivery Address", icon: MapPin },
-        ].map((s, i) => (
-          <div key={s.num} className="flex items-center gap-2 flex-1">
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                step >= s.num
-                  ? "gradient-water text-water-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {s.num}
-            </div>
-            <span className={`hidden text-sm sm:block ${step >= s.num ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-              {s.label}
-            </span>
-            {i < 2 && <div className={`mx-2 h-px flex-1 ${step > s.num ? "bg-primary" : "bg-border"}`} />}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 1: Product */}
-      {step === 1 && (
-        <div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedCategory("all")}
-              className={`rounded-full px-3 py-1 text-sm transition-colors ${selectedCategory === "all" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
-            >
-              All
-            </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`rounded-full px-3 py-1 text-sm transition-colors ${selectedCategory === c.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
-              >
-                {c.icon} {c.name}
-              </button>
-            ))}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProducts.map((p) => (
-              <Card
-                key={p.id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-water ${
-                  selectedProduct === p.id ? "ring-2 ring-primary shadow-water" : ""
+      {/* Modern Progress Steps */}
+      <div className="mb-10 flex justify-center">
+        <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-full">
+          {[
+            { num: 1, icon: Package },
+            { num: 2, icon: CalendarDays },
+            { num: 3, icon: MapPin },
+          ].map((s, i) => (
+            <div key={s.num} className="flex items-center">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm transition-all duration-300 ${
+                  step === s.num
+                    ? "bg-foreground text-background shadow-md scale-110"
+                    : step > s.num
+                    ? "bg-primary/20 text-primary"
+                    : "bg-transparent text-muted-foreground"
                 }`}
-                onClick={() => setSelectedProduct(p.id)}
               >
-                <CardContent className="flex items-center gap-3 p-4">
-                  <Droplets className="h-8 w-8 shrink-0 text-primary/40" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground truncate">{p.name}</h3>
-                    <p className="text-xs text-muted-foreground">{p.size}</p>
-                  </div>
-                  <span className="text-sm font-bold text-primary">${p.price.toFixed(2)}</span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {selectedProduct && (
-            <div className="mt-6 flex items-center gap-4">
-              <label className="text-sm font-medium text-foreground">Quantity:</label>
-              <div className="flex items-center rounded-lg border">
-                <button className="px-3 py-1.5 text-foreground hover:bg-accent" onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button>
-                <span className="px-4 py-1.5 text-sm font-semibold text-foreground border-x">{quantity}</span>
-                <button className="px-3 py-1.5 text-foreground hover:bg-accent" onClick={() => setQuantity(quantity + 1)}>+</button>
+                {step > s.num ? <CheckCircle2 className="h-5 w-5" /> : <s.icon className="h-4 w-4" />}
               </div>
-              <Button variant="hero" onClick={() => setStep(2)}>
-                Continue
-              </Button>
+              {i < 2 && <div className={`w-8 h-[2px] mx-1 rounded-full ${step > s.num ? "bg-primary/40" : "bg-border"}`} />}
             </div>
-          )}
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Step 2: Date & Time */}
-      {step === 2 && (
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /> Select Date & Time</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Delivery Date</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Time Slot</label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {timeSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      onClick={() => setSelectedTime(slot)}
-                      className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm transition-colors ${
-                        selectedTime === slot
-                          ? "border-primary bg-primary/5 text-primary font-medium"
-                          : "text-foreground hover:bg-accent"
-                      }`}
-                    >
-                      <Clock className="h-4 w-4" />
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isRecurring}
-                    onChange={(e) => setIsRecurring(e.target.checked)}
-                    className="h-4 w-4 rounded border-input text-primary accent-primary"
-                  />
-                  <span className="text-sm font-medium text-foreground">Make this a recurring delivery</span>
-                </label>
-                {isRecurring && (
-                  <div className="mt-3 flex gap-2">
-                    {["daily", "weekly", "bi-weekly", "monthly"].map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setFrequency(f)}
-                        className={`rounded-full px-3 py-1 text-sm capitalize transition-colors ${
-                          frequency === f ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button
-                  variant="hero"
-                  disabled={!selectedDate || !selectedTime}
-                  onClick={() => setStep(3)}
+      <div className="relative glass-card rounded-[2rem] p-6 sm:p-8 shadow-water-lg border-primary/10">
+        {/* Step 1: Product */}
+        {step === 1 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold mb-6 text-foreground">What do you need?</h2>
+            
+            <div className="mb-6 flex overflow-x-auto pb-2 no-scrollbar gap-2">
+              <button
+                onClick={() => setSelectedCategory("all")}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors shrink-0 ${
+                  selectedCategory === "all" ? "bg-foreground text-background" : "bg-muted text-foreground"
+                }`}
+              >
+                All
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(c.id)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors shrink-0 ${
+                    selectedCategory === c.id ? "bg-foreground text-background" : "bg-muted text-foreground"
+                  }`}
                 >
-                  Continue
+                  {c.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 no-scrollbar">
+              {filteredProducts.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedProduct(p.id)}
+                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                    selectedProduct === p.id 
+                      ? "border-primary bg-primary/5 shadow-sm" 
+                      : "border-border/50 hover:border-primary/30 hover:bg-muted/30"
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${selectedProduct === p.id ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                    <Droplets className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-foreground truncate">{p.name}</h3>
+                    <p className="text-xs text-muted-foreground">{p.size} • {p.unit}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-extrabold text-primary">₹{p.price.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedProduct && (
+              <div className="mt-8 pt-6 border-t border-border/50 flex items-center justify-between">
+                <div className="flex items-center gap-3 bg-muted p-1 rounded-xl">
+                  <button className="w-10 h-10 rounded-lg flex items-center justify-center bg-background shadow-sm text-foreground" onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button>
+                  <span className="w-8 text-center font-bold">{quantity}</span>
+                  <button className="w-10 h-10 rounded-lg flex items-center justify-center bg-background shadow-sm text-foreground" onClick={() => setQuantity(quantity + 1)}>+</button>
+                </div>
+                <Button variant="hero" className="rounded-xl px-8 h-12 shadow-water" onClick={() => setStep(2)}>
+                  Next Step
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {/* Step 3: Address */}
-      {step === 3 && (
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-primary" /> Delivery Address</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* Step 2: Date & Time */}
+        {step === 2 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold mb-6 text-foreground">When to deliver?</h2>
+            <CalendarScheduler 
+              onScheduleSelect={(data) => {
+                setScheduleData(data);
+                setStep(3);
+              }} 
+            />
+            <div className="mt-4 text-center">
+              <button className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setStep(1)}>
+                Back to product
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Address */}
+        {step === 3 && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold mb-6 text-foreground">Where to deliver?</h2>
+            
+            <div className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Full Address</label>
+                <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
+                  <MapPin className="h-4 w-4 text-primary" /> Delivery Address
+                </label>
                 <textarea
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Enter your complete delivery address..."
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px]"
+                  placeholder="Enter full address, apartment number, landmark..."
+                  className="w-full rounded-2xl border-2 border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-0 min-h-[120px] resize-none"
                 />
               </div>
 
-              {/* Summary */}
-              <div className="rounded-xl bg-muted/50 p-5">
-                <h3 className="font-semibold text-foreground mb-3">Order Summary</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Product</span>
-                    <span className="text-foreground font-medium">{selectedProductData?.name} ({selectedProductData?.size})</span>
+              {selectedProductData?.category === 'apartment' && (
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in duration-300">
+                  <div>
+                    <label className="text-xs font-medium text-foreground mb-1 block">Society/Apartment Name</label>
+                    <input type="text" placeholder="e.g. Green Valley" className="w-full rounded-xl border-2 border-border/50 bg-background/50 px-3 py-2 text-sm focus:border-primary focus:outline-none" />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Quantity</span>
-                    <span className="text-foreground font-medium">{quantity}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Date</span>
-                    <span className="text-foreground font-medium">{selectedDate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Time</span>
-                    <span className="text-foreground font-medium">{selectedTime}</span>
-                  </div>
-                  {isRecurring && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Recurring</span>
-                      <span className="text-primary font-medium capitalize">{frequency}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-2 mt-2">
-                    <span className="font-semibold text-foreground">Total</span>
-                    <span className="text-lg font-bold text-primary">${((selectedProductData?.price || 0) * quantity).toFixed(2)}</span>
+                  <div>
+                    <label className="text-xs font-medium text-foreground mb-1 block">Block / Tank Location</label>
+                    <input type="text" placeholder="e.g. Block A Underground" className="w-full rounded-xl border-2 border-border/50 bg-background/50 px-3 py-2 text-sm focus:border-primary focus:outline-none" />
                   </div>
                 </div>
+              )}
+
+              <div className="rounded-2xl bg-primary/5 border border-primary/20 p-5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">Total per delivery</span>
+                  <span className="text-2xl font-extrabold text-foreground">₹{((selectedProductData?.price || 0) * quantity).toFixed(2)}</span>
+                </div>
+                <p className="text-xs text-primary font-medium">Pay via UPI or Cash on Delivery</p>
               </div>
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+              <div className="flex gap-3 pt-4">
+                <Button variant="outline" className="rounded-xl h-14 w-14 p-0 flex items-center justify-center shrink-0" onClick={() => setStep(2)}>
+                  <CalendarDays className="h-5 w-5" />
+                </Button>
                 <Button
                   variant="hero"
-                  size="lg"
+                  className="flex-1 rounded-xl h-14 text-base shadow-water"
                   disabled={!address.trim()}
                   onClick={() => setSubmitted(true)}
-                  className="flex-1"
                 >
-                  Confirm Delivery
+                  Confirm Schedule
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
