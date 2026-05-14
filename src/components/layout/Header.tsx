@@ -1,24 +1,33 @@
 import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { MapPin, ChevronDown, Navigation, Bell, Droplets, ShoppingCart, X, Search } from "lucide-react";
+import {
+  MapPin,
+  ChevronDown,
+  Navigation,
+  Bell,
+  Droplets,
+  ShoppingCart,
+  X,
+  Search,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 
 export function Header() {
-  const { user, profile }  = useAuth();
-  const { totalItems }     = useCart();
-  const navigate           = useNavigate();
-  const location           = useLocation();
+  const { user, profile } = useAuth();
+  const { totalItems } = useCart();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const [locationLabel, setLocationLabel] = useState("Home");
-  const [locationSub,   setLocationSub]   = useState("123 Main St, Block A, Green Valley");
-  const [isLocating,    setIsLocating]    = useState(false);
-  const [notifCount]                      = useState(3);
-  const [query,         setQuery]         = useState("");
-  const inputRef                          = useRef<HTMLInputElement>(null);
+  const [locationSub, setLocationSub] = useState("123 Main St, Block A, Green Valley");
+  const [isLocating, setIsLocating] = useState(false);
+  const [notifCount] = useState(3);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync query from URL when on /products
   useEffect(() => {
@@ -28,24 +37,49 @@ export function Header() {
   }, [location.pathname]);
 
   const displayName = profile?.name || user?.displayName || "";
-  const initials    = displayName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
-  const photoURL    = profile?.photoURL || user?.photoURL || "";
+  const initials =
+    displayName
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+  const photoURL = profile?.photoURL || user?.photoURL || "";
 
   const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationSub("Geolocation not supported");
+      return;
+    }
     setIsLocating(true);
-    navigator.geolocation?.getCurrentPosition(
-      () => {
-        setLocationLabel("Current Location");
-        setLocationSub("High Street, Block B (GPS)");
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json`,
+            { headers: { "Accept-Language": "en" } },
+          );
+          const data = await res.json();
+          const a = data.address ?? {};
+          const area =
+            a.suburb ?? a.neighbourhood ?? a.city_district ?? a.county ?? "";
+          const city = a.city ?? a.town ?? a.village ?? "";
+          setLocationLabel(area || city || "Current Location");
+          setLocationSub(
+            `${city}${a.postcode ? " – " + a.postcode : ""}${city ? " (GPS)" : "GPS location"}`,
+          );
+        } catch {
+          setLocationLabel("Current Location");
+          setLocationSub(`${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)} (GPS)`);
+        }
         setIsLocating(false);
       },
       () => {
         setLocationSub("Location access denied");
         setIsLocating(false);
       },
+      { timeout: 10000, maximumAge: 60000 },
     );
-    // Fallback timeout in case geolocation hangs
-    setTimeout(() => setIsLocating(false), 4000);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -66,10 +100,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-background/96 backdrop-blur-md border-b border-border/40 shadow-sm">
       <div className="mx-auto flex max-w-md flex-col px-4 pt-3 pb-3">
-
         {/* Top bar */}
         <div className="flex items-center justify-between mb-3">
-
           {/* Brand + location */}
           <div className="flex items-center gap-2 min-w-0">
             {/* Logo */}
@@ -91,7 +123,11 @@ export function Header() {
                 <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-colors" />
               </div>
               <div className="flex items-center gap-1 max-w-[180px]">
-                <MapPin className="h-3.5 w-3.5 text-primary shrink-0" fill="currentColor" fillOpacity={0.25} />
+                <MapPin
+                  className="h-3.5 w-3.5 text-primary shrink-0"
+                  fill="currentColor"
+                  fillOpacity={0.25}
+                />
                 <span className="text-sm font-extrabold text-foreground truncate leading-tight">
                   {isLocating ? "Finding you…" : locationLabel}
                 </span>
@@ -105,30 +141,55 @@ export function Header() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
-
             {/* Cart icon — badge only renders after mount to avoid SSR/localStorage mismatch */}
             <Link
               to="/checkout"
               className="relative"
-              aria-label={mounted && totalItems > 0 ? `Cart, ${totalItems} item${totalItems !== 1 ? "s" : ""}` : "Cart"}
+              aria-label={
+                mounted && totalItems > 0
+                  ? `Cart, ${totalItems} item${totalItems !== 1 ? "s" : ""}`
+                  : "Cart"
+              }
             >
-              <Button variant="ghost" size="icon" className="rounded-xl bg-muted/50 h-9 w-9" aria-hidden="true" tabIndex={-1}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl bg-muted/50 h-9 w-9"
+                aria-hidden="true"
+                tabIndex={-1}
+              >
                 <ShoppingCart className="h-5 w-5 text-foreground" />
               </Button>
               {mounted && totalItems > 0 && (
-                <span aria-hidden="true" className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-primary text-white text-[9px] font-extrabold flex items-center justify-center px-0.5 animate-badge-pop">
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-primary text-white text-[9px] font-extrabold flex items-center justify-center px-0.5 animate-badge-pop"
+                >
                   {totalItems > 9 ? "9+" : totalItems}
                 </span>
               )}
             </Link>
 
             {/* Notification bell */}
-            <Link to="/profile" className="relative" aria-label={`Notifications${notifCount > 0 ? `, ${notifCount} unread` : ""}`}>
-              <Button variant="ghost" size="icon" className="rounded-xl bg-muted/50 h-9 w-9" aria-hidden="true" tabIndex={-1}>
+            <Link
+              to="/profile"
+              className="relative"
+              aria-label={`Notifications${notifCount > 0 ? `, ${notifCount} unread` : ""}`}
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl bg-muted/50 h-9 w-9"
+                aria-hidden="true"
+                tabIndex={-1}
+              >
                 <Bell className="h-5 w-5 text-foreground" />
               </Button>
               {notifCount > 0 && (
-                <span aria-hidden="true" className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center animate-badge-pop">
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center animate-badge-pop"
+                >
                   {notifCount}
                 </span>
               )}
@@ -137,7 +198,13 @@ export function Header() {
             {/* Profile avatar */}
             <Link to="/profile" aria-label="Profile">
               {photoURL ? (
-                <img src={photoURL} alt={displayName} width={36} height={36} className="h-9 w-9 rounded-xl object-cover border border-primary/20" />
+                <img
+                  src={photoURL}
+                  alt={displayName}
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-xl object-cover border border-primary/20"
+                />
               ) : (
                 <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/20 to-water/20 border border-primary/20 flex items-center justify-center">
                   <span className="text-xs font-extrabold text-primary">{initials}</span>

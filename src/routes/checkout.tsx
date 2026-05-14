@@ -2,13 +2,23 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { AddressPicker } from "@/components/AddressPicker";
 import { useState, useEffect } from "react";
 import {
-  ChevronLeft, MapPin, Smartphone, Package,
-  CheckCircle2, Plus, Minus, Truck, Clock, Tag,
+  ChevronLeft,
+  MapPin,
+  Smartphone,
+  Package,
+  CheckCircle2,
+  Plus,
+  Minus,
+  Truck,
+  Clock,
+  Tag,
+  PenLine,
 } from "lucide-react";
 import { products as FALLBACK_PRODUCTS, type Product } from "@/lib/data";
-import { subscribeProducts, placeOrder } from "@/lib/firebase";
+import { subscribeProducts, placeOrder, type UserAddress } from "@/lib/firebase";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -20,12 +30,27 @@ function CheckoutPage() {
   const navigate = useNavigate();
 
   const [paymentMethod, setPaymentMethod] = useState<"upi" | "cod">("upi");
-  const [address, setAddress]   = useState("");
-  const [pincode, setPincode]   = useState("");
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const [address, setAddress] = useState("");
+  const [pincode, setPincode] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [placed, setPlaced]     = useState(false);
-  const [placing, setPlacing]   = useState(false);
+  const [placed, setPlaced] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+
+  const savedAddresses: UserAddress[] = profile?.addresses ?? [];
+
+  /* Pre-select default address on mount */
+  useEffect(() => {
+    if (savedAddresses.length > 0 && !selectedAddressId) {
+      const def = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0];
+      setSelectedAddressId(def.id);
+      setAddress(def.line1);
+      setPincode(def.pincode);
+      setLandmark(def.landmark ?? "");
+    }
+  }, [savedAddresses.length]);
 
   useEffect(() => {
     const unsub = subscribeProducts((docs) => {
@@ -34,6 +59,22 @@ function CheckoutPage() {
     return unsub;
   }, []);
 
+  const handleSelectAddress = (addr: UserAddress) => {
+    setSelectedAddressId(addr.id);
+    setAddress(addr.line1);
+    setPincode(addr.pincode);
+    setLandmark(addr.landmark ?? "");
+    setManualMode(false);
+  };
+
+  const handleAddNew = () => {
+    setSelectedAddressId(null);
+    setAddress("");
+    setPincode("");
+    setLandmark("");
+    setManualMode(true);
+  };
+
   const cartItems = Object.entries(cart)
     .map(([id, qty]) => {
       const product = products.find((p) => p.id === id);
@@ -41,24 +82,24 @@ function CheckoutPage() {
     })
     .filter(Boolean) as (Product & { qty: number })[];
 
-  const deliveryFee    = totalPrice >= 299 ? 0 : 30;
+  const deliveryFee = totalPrice >= 299 ? 0 : 30;
   const orderTotal = totalPrice + deliveryFee;
 
   const handlePlaceOrder = async () => {
     if (!address.trim() || !pincode.trim()) return;
     setPlacing(true);
-    const itemsSummary = cartItems
-      .map((item) => `${item.name} × ${item.qty}`)
+    const itemsSummary = cartItems.map((item) => `${item.name} × ${item.qty}`).join(", ");
+    const fullAddress = [address.trim(), pincode.trim(), landmark.trim()]
+      .filter(Boolean)
       .join(", ");
-    const fullAddress = [address.trim(), pincode.trim(), landmark.trim()].filter(Boolean).join(", ");
     await placeOrder({
-      userId:   profile?.uid ?? "guest",
+      userId: profile?.uid ?? "guest",
       customer: profile?.name || "Guest",
-      phone:    profile?.phone || "",
-      items:    itemsSummary,
-      total:    orderTotal,
-      payment:  paymentMethod,
-      address:  fullAddress,
+      phone: profile?.phone || "",
+      items: itemsSummary,
+      total: orderTotal,
+      payment: paymentMethod,
+      address: fullAddress,
     });
     setPlacing(false);
     setPlaced(true);
@@ -75,9 +116,14 @@ function CheckoutPage() {
         </div>
         <div>
           <h2 className="text-xl font-extrabold">Cart is empty</h2>
-          <p className="text-sm text-muted-foreground mt-1">Add some products before checking out.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Add some products before checking out.
+          </p>
         </div>
-        <Button onClick={() => navigate({ to: "/products" })} className="rounded-2xl px-8 h-11 font-extrabold">
+        <Button
+          onClick={() => navigate({ to: "/products" })}
+          className="rounded-2xl px-8 h-11 font-extrabold"
+        >
           Shop Now
         </Button>
       </div>
@@ -96,7 +142,9 @@ function CheckoutPage() {
           <p className="text-muted-foreground text-sm mt-1">Your water is on its way 💧</p>
         </div>
         <div className="bg-primary/8 rounded-2xl p-4 w-full max-w-xs text-left space-y-1">
-          <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">Estimated Delivery</p>
+          <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
+            Estimated Delivery
+          </p>
           <p className="text-base font-extrabold">Today, 4 – 6 PM</p>
           <p className="text-xs text-muted-foreground">You'll receive a call before delivery</p>
         </div>
@@ -108,7 +156,6 @@ function CheckoutPage() {
   /* ── Main checkout ── */
   return (
     <div className="bg-muted/20 min-h-screen pb-36">
-
       {/* Sticky header */}
       <div className="sticky top-0 z-20 bg-background/96 backdrop-blur border-b border-border/40 px-4 py-3 flex items-center gap-3">
         <button
@@ -118,11 +165,12 @@ function CheckoutPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="text-base font-extrabold">Checkout</h1>
-        <span className="ml-auto text-xs text-muted-foreground font-medium">{totalItems} item{totalItems !== 1 ? "s" : ""}</span>
+        <span className="ml-auto text-xs text-muted-foreground font-medium">
+          {totalItems} item{totalItems !== 1 ? "s" : ""}
+        </span>
       </div>
 
       <div className="px-4 space-y-4 pt-4">
-
         {/* Cart Items */}
         <div className="bg-background rounded-2xl border border-border/40 shadow-sm overflow-hidden">
           <div className="px-4 pt-4 pb-2 border-b border-border/40 flex items-center justify-between">
@@ -136,7 +184,10 @@ function CheckoutPage() {
           </div>
 
           {cartItems.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 p-4 border-b border-border/40 last:border-0">
+            <div
+              key={item.id}
+              className="flex items-center gap-3 p-4 border-b border-border/40 last:border-0"
+            >
               <img
                 src={item.imageUrl}
                 alt={item.name}
@@ -147,7 +198,9 @@ function CheckoutPage() {
               />
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold truncate">{item.name}</h3>
-                <p className="text-[11px] text-muted-foreground">{item.size} · {item.unit}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {item.size} · {item.unit}
+                </p>
                 <p className="text-sm font-extrabold text-primary mt-0.5">
                   ₹{(item.price * item.qty).toFixed(0)}
                   {item.qty > 1 && (
@@ -178,34 +231,65 @@ function CheckoutPage() {
 
         {/* Delivery Address */}
         <div className="bg-background rounded-2xl border border-border/40 shadow-sm p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-extrabold">Delivery Address</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-extrabold">Delivery Address</h2>
+            </div>
+            {savedAddresses.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setManualMode((m) => !m)}
+                className="flex items-center gap-1 text-xs text-primary font-bold"
+              >
+                <PenLine className="h-3 w-3" />
+                {manualMode ? "Pick saved" : "Enter manually"}
+              </button>
+            )}
           </div>
 
-          <textarea
-            className="w-full bg-muted/50 rounded-xl border border-border/50 px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 resize-none"
-            placeholder="House / Flat no., Street, Area…"
-            rows={2}
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-
-          <div className="flex gap-2 mt-2">
-            <input
-              className="w-28 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
-              placeholder="Pincode"
-              value={pincode}
-              onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
+          {savedAddresses.length > 0 && !manualMode ? (
+            <AddressPicker
+              addresses={savedAddresses}
+              selectedId={selectedAddressId}
+              onSelect={handleSelectAddress}
+              onAddNew={handleAddNew}
             />
-            <input
-              className="flex-1 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
-              placeholder="Landmark (optional)"
-              value={landmark}
-              onChange={(e) => setLandmark(e.target.value)}
-            />
-          </div>
+          ) : (
+            <>
+              {savedAddresses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setManualMode(false)}
+                  className="mb-3 text-xs text-primary font-bold flex items-center gap-1"
+                >
+                  ← Use saved address
+                </button>
+              )}
+              <textarea
+                className="w-full bg-muted/50 rounded-xl border border-border/50 px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 resize-none"
+                placeholder="House / Flat no., Street, Area…"
+                rows={2}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+              <div className="flex gap-2 mt-2">
+                <input
+                  className="w-28 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+                  placeholder="Pincode"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                />
+                <input
+                  className="flex-1 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+                  placeholder="Landmark (optional)"
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex items-center gap-2 mt-3 p-3 bg-primary/8 rounded-xl">
             <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -225,29 +309,27 @@ function CheckoutPage() {
           <div className="space-y-2">
             {[
               {
-                id:       "upi" as const,
-                icon:     Smartphone,
-                label:    "UPI / Net Banking",
-                desc:     "PhonePe, GPay, Paytm, and more",
-                disabled: false,
+                id: "upi" as const,
+                icon: Smartphone,
+                label: "UPI / Net Banking",
+                desc: "PhonePe, GPay, Paytm, and more",
               },
               {
-                id:       "cod" as const,
-                icon:     Truck,
-                label:    "Cash on Delivery",
-                desc:     "Pay when your order arrives",
-                disabled: false,
+                id: "cod" as const,
+                icon: Truck,
+                label: "Cash on Delivery",
+                desc: "Pay when your order arrives",
               },
             ].map((method) => (
               <button
                 key={method.id}
-                onClick={() => !method.disabled && setPaymentMethod(method.id)}
-                disabled={method.disabled}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                type="button"
+                onClick={() => setPaymentMethod(method.id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left cursor-pointer ${
                   paymentMethod === method.id
                     ? "border-primary bg-primary/8"
                     : "border-border/40 hover:border-primary/30"
-                } ${method.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                }`}
               >
                 <div
                   className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
@@ -266,12 +348,12 @@ function CheckoutPage() {
                 </div>
                 <div
                   className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                    paymentMethod === method.id ? "border-primary bg-primary" : "border-muted-foreground/30"
+                    paymentMethod === method.id
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/30"
                   }`}
                 >
-                  {paymentMethod === method.id && (
-                    <div className="w-2 h-2 rounded-full bg-white" />
-                  )}
+                  {paymentMethod === method.id && <div className="w-2 h-2 rounded-full bg-white" />}
                 </div>
               </button>
             ))}
@@ -305,14 +387,13 @@ function CheckoutPage() {
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Sticky place-order CTA */}
       <div className="fixed bottom-[64px] left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-3 bg-gradient-to-t from-background via-background/90 to-transparent pt-6 z-20">
         {(!address.trim() || !pincode.trim()) && (
           <p className="text-center text-xs text-destructive font-semibold mb-2">
-            Please fill in your delivery address and pincode
+            Please select or enter a delivery address and pincode
           </p>
         )}
         <Button
