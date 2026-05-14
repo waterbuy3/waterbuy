@@ -3,21 +3,25 @@ import { products as allProducts } from "@/lib/data";
 
 export interface CartItem {
   productId: string;
-  qty:       number;
+  qty: number;
 }
 
 interface CartContextValue {
-  cart:          Record<string, number>;
-  totalItems:    number;
-  totalPrice:    number;
-  addToCart:     (id: string) => void;
-  removeFromCart:(id: string) => void;
-  clearCart:     () => void;
+  cart: Record<string, number>;
+  totalItems: number;
+  totalPrice: number;
+  addToCart: (id: string) => void;
+  removeFromCart: (id: string) => void;
+  clearCart: () => void;
 }
 
 const CartContext = createContext<CartContextValue>({
-  cart: {}, totalItems: 0, totalPrice: 0,
-  addToCart: () => {}, removeFromCart: () => {}, clearCart: () => {},
+  cart: {},
+  totalItems: 0,
+  totalPrice: 0,
+  addToCart: () => {},
+  removeFromCart: () => {},
+  clearCart: () => {},
 });
 
 const STORAGE_KEY = "aquapure_cart";
@@ -28,17 +32,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
+    } catch {
+      return {};
+    }
   });
 
   // Persist to localStorage on every change
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cart)); }
-    catch { /* quota exceeded — ignore */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      /* quota exceeded — ignore */
+    }
   }, [cart]);
 
-  const addToCart = (id: string) =>
-    setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  const addToCart = (id: string) => setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
 
   const removeFromCart = (id: string) =>
     setCart((prev) => {
@@ -57,7 +65,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, 0);
 
   return (
-    <CartContext.Provider value={{ cart, totalItems, totalPrice, addToCart, removeFromCart, clearCart }}>
+    <CartContext.Provider
+      value={{ cart, totalItems, totalPrice, addToCart, removeFromCart, clearCart }}
+    >
       {children}
     </CartContext.Provider>
   );

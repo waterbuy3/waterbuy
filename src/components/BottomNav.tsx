@@ -4,18 +4,18 @@ import { useCart } from "@/context/CartContext";
 import { useState, useEffect } from "react";
 
 export function BottomNav() {
-  const location    = useLocation();
+  const location = useLocation();
   const currentPath = location.pathname;
   const { totalItems } = useCart();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const navItems = [
-    { name: "Home",     path: "/",             icon: Home },
-    { name: "Shop",     path: "/products",     icon: ShoppingBag, badge: totalItems },
-    { name: "Schedule", path: "/schedule",     icon: CalendarDays },
-    { name: "Plans",    path: "/subscriptions",icon: Repeat },
-    { name: "Profile",  path: "/profile",      icon: User },
+    { name: "Home", path: "/", icon: Home },
+    { name: "Shop", path: "/products", icon: ShoppingBag, badge: totalItems },
+    { name: "Schedule", path: "/schedule", icon: CalendarDays },
+    { name: "Plans", path: "/subscriptions", icon: Repeat },
+    { name: "Profile", path: "/profile", icon: User },
   ];
 
   return (
@@ -24,8 +24,9 @@ export function BottomNav() {
         {navItems.map((item) => {
           // treat /checkout as part of /products (Shop tab)
           const effectivePath = currentPath === "/checkout" ? "/products" : currentPath;
-          const isActive = effectivePath === item.path
-            || (item.path !== "/" && effectivePath.startsWith(item.path));
+          const isActive =
+            effectivePath === item.path ||
+            (item.path !== "/" && effectivePath.startsWith(item.path));
           const count = (item as { badge?: number }).badge ?? 0;
 
           return (
@@ -38,7 +39,9 @@ export function BottomNav() {
                 <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-12 h-8 rounded-xl bg-primary/10 pointer-events-none" />
               )}
 
-              <div className={`relative flex flex-col items-center justify-center transition-transform duration-200 ${isActive ? "-translate-y-0.5" : ""}`}>
+              <div
+                className={`relative flex flex-col items-center justify-center transition-transform duration-200 ${isActive ? "-translate-y-0.5" : ""}`}
+              >
                 <div className="relative">
                   <item.icon
                     className={`h-[22px] w-[22px] mb-0.5 transition-all duration-200 ${
@@ -54,9 +57,11 @@ export function BottomNav() {
                     </span>
                   )}
                 </div>
-                <span className={`text-[9px] tracking-wide transition-all duration-200 ${
-                  isActive ? "font-extrabold text-primary" : "font-medium text-muted-foreground"
-                }`}>
+                <span
+                  className={`text-[9px] tracking-wide transition-all duration-200 ${
+                    isActive ? "font-extrabold text-primary" : "font-medium text-muted-foreground"
+                  }`}
+                >
                   {item.name}
                 </span>
               </div>

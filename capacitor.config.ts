@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId:   "com.aquapure.waterdelivery",   // Change to your reverse-domain ID
+  appId: "com.aquapure.waterdelivery", // Change to your reverse-domain ID
   appName: "AquaPure",
-  webDir:  "dist/client",                  // TanStack Start's client output
+  webDir: "dist/client", // TanStack Start's client output
   server: {
     // Remove this block before building for Play Store release
     // url: "http://192.168.0.27:8082",    // for live-reload during dev
@@ -16,19 +16,19 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration:    2000,
-      launchAutoHide:        true,
-      backgroundColor:       "#1a6fd4",
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: "#1a6fd4",
       androidSplashResourceName: "splash",
-      showSpinner:           false,
+      showSpinner: false,
     },
     StatusBar: {
-      style:           "LIGHT",
+      style: "LIGHT",
       backgroundColor: "#1a6fd4",
     },
     Keyboard: {
-      resize:         "body",
-      style:          "DARK",
+      resize: "body",
+      style: "DARK",
       resizeOnFullScreen: true,
     },
   },

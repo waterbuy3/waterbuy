@@ -1,14 +1,19 @@
 import {
-  Outlet, Link, createRootRoute, HeadContent, Scripts,
-  useNavigate, useLocation,
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  useNavigate,
+  useLocation,
 } from "@tanstack/react-router";
-import { Header }        from "@/components/layout/Header";
-import { BottomNav }     from "@/components/BottomNav";
+import { Header } from "@/components/layout/Header";
+import { BottomNav } from "@/components/BottomNav";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { CartProvider }          from "@/context/CartContext";
+import { CartProvider } from "@/context/CartContext";
 import { useEffect } from "react";
-import { Droplets }  from "lucide-react";
+import { Droplets } from "lucide-react";
 
 import appCss from "../styles.css?url";
 
@@ -24,7 +29,10 @@ function NotFoundComponent() {
           The page you're looking for doesn't exist or has been moved.
         </p>
         <div className="mt-6">
-          <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
             Go home
           </Link>
         </div>
@@ -37,20 +45,31 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" },
-      { name: "mobile-web-app-capable",            content: "yes" },
-      { name: "apple-mobile-web-app-capable",      content: "yes" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover",
+      },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title",         content: "AquaPure" },
-      { name: "theme-color",                       content: "#1a6fd4" },
+      { name: "apple-mobile-web-app-title", content: "AquaPure" },
+      { name: "theme-color", content: "#1a6fd4" },
       { title: "AquaPure — Premium Water Delivery" },
-      { name: "description", content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save." },
+      {
+        name: "description",
+        content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save.",
+      },
       { property: "og:title", content: "AquaPure — Premium Water Delivery" },
       { name: "twitter:title", content: "AquaPure — Premium Water Delivery" },
-      { property: "og:description", content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save." },
-      { name: "twitter:description", content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eaa16f50-787f-4df1-9602-43c35db1d8c9/id-preview-a1ebcae8--614e4e85-b89e-4f16-99ee-c52dba3d67bd.lovable.app-1778254188680.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eaa16f50-787f-4df1-9602-43c35db1d8c9/id-preview-a1ebcae8--614e4e85-b89e-4f16-99ee-c52dba3d67bd.lovable.app-1778254188680.png" },
+      {
+        property: "og:description",
+        content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save.",
+      },
+      {
+        name: "twitter:description",
+        content: "Order water bottles, cans, tankers & bundles. Schedule, subscribe & save.",
+      },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -62,7 +81,10 @@ export const Route = createRootRoute({
       { rel: "icon", href: "/icons/icon.svg", sizes: "any", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -73,7 +95,9 @@ export const Route = createRootRoute({
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />
@@ -91,8 +115,11 @@ function LoadingScreen() {
       </div>
       <div className="flex gap-1.5">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="w-2 h-2 rounded-full bg-primary animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }} />
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full bg-primary animate-bounce"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
         ))}
       </div>
     </div>
@@ -113,7 +140,7 @@ function AppShell() {
     if (!isFirebaseReady || loading) return;
 
     if (!user && !isPublic) navigate({ to: "/login" });
-    if (user  &&  isPublic) navigate({ to: "/" });
+    if (user && isPublic) navigate({ to: "/" });
   }, [user, loading, isFirebaseReady, isFirebaseConfigured, isPublic, navigate]);
 
   // Show splash only while Firebase is actively resolving
@@ -128,7 +155,9 @@ function AppShell() {
       <OfflineBanner />
       <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col bg-background shadow-2xl relative overflow-hidden">
         <Header />
-        <main className="flex-1 pb-20"><Outlet /></main>
+        <main className="flex-1 pb-20">
+          <Outlet />
+        </main>
         <BottomNav />
       </div>
     </>

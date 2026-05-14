@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
 import { subscribeSubscriptionPlans } from "@/lib/firebase";
-import { Check, ChevronRight, Droplets, CalendarDays, Zap, Shield, Star, ArrowRight } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Droplets,
+  CalendarDays,
+  Zap,
+  Shield,
+  Star,
+  ArrowRight,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/subscriptions")({
@@ -23,10 +32,22 @@ const planSavings: Record<string, number> = {
 };
 
 const planColors: Record<string, { gradient: string; accent: string; icon: string }> = {
-  basic:            { gradient: "from-sky-400 to-blue-500",    accent: "text-sky-600 bg-sky-50",      icon: "💧" },
-  alternate:        { gradient: "from-primary to-water",       accent: "text-primary bg-primary/10",  icon: "🔄" },
-  weekly:           { gradient: "from-teal-500 to-emerald-500",accent: "text-teal-700 bg-teal-50",    icon: "🏠" },
-  monthly_corporate:{ gradient: "from-indigo-500 to-purple-600",accent:"text-indigo-700 bg-indigo-50",icon: "🏢" },
+  basic: { gradient: "from-sky-400 to-blue-500", accent: "text-sky-600 bg-sky-50", icon: "💧" },
+  alternate: {
+    gradient: "from-primary to-water",
+    accent: "text-primary bg-primary/10",
+    icon: "🔄",
+  },
+  weekly: {
+    gradient: "from-teal-500 to-emerald-500",
+    accent: "text-teal-700 bg-teal-50",
+    icon: "🏠",
+  },
+  monthly_corporate: {
+    gradient: "from-indigo-500 to-purple-600",
+    accent: "text-indigo-700 bg-indigo-50",
+    icon: "🏢",
+  },
 };
 
 function SubscriptionsPage() {
@@ -41,15 +62,14 @@ function SubscriptionsPage() {
   }, []);
 
   const perks = [
-    { icon: Zap,    text: "Pause or skip any delivery anytime" },
+    { icon: Zap, text: "Pause or skip any delivery anytime" },
     { icon: Shield, text: "Cancel anytime — no lock-in" },
-    { icon: Star,   text: "Priority support for subscribers" },
+    { icon: Star, text: "Priority support for subscribers" },
     { icon: Droplets, text: "Fresh purified water every delivery" },
   ];
 
   return (
     <div className="bg-muted/20 min-h-screen pb-28">
-
       {/* Header */}
       <div className="bg-gradient-to-br from-primary to-water px-4 pt-6 pb-8 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pointer-events-none">
@@ -59,9 +79,15 @@ function SubscriptionsPage() {
           </svg>
         </div>
         <div className="relative z-10">
-          <span className="inline-block text-[10px] font-extrabold text-white/70 uppercase tracking-widest mb-1">Auto-pilot hydration</span>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Choose your plan</h1>
-          <p className="text-sm text-white/75 mt-1 font-medium">Set it once. Stay hydrated forever.</p>
+          <span className="inline-block text-[10px] font-extrabold text-white/70 uppercase tracking-widest mb-1">
+            Auto-pilot hydration
+          </span>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">
+            Choose your plan
+          </h1>
+          <p className="text-sm text-white/75 mt-1 font-medium">
+            Set it once. Stay hydrated forever.
+          </p>
         </div>
       </div>
 
@@ -80,15 +106,19 @@ function SubscriptionsPage() {
                 isSelected
                   ? "border-primary shadow-water scale-[1.01]"
                   : plan.popular
-                  ? "border-primary/40"
-                  : "border-border/60"
+                    ? "border-primary/40"
+                    : "border-border/60"
               }`}
             >
               {/* Popular ribbon */}
               {plan.popular && (
-                <div className={`bg-gradient-to-r ${color.gradient} py-1.5 px-4 flex items-center justify-center gap-1.5`}>
+                <div
+                  className={`bg-gradient-to-r ${color.gradient} py-1.5 px-4 flex items-center justify-center gap-1.5`}
+                >
                   <Star className="h-3 w-3 fill-white text-white" />
-                  <span className="text-[11px] font-extrabold text-white uppercase tracking-wider">Most Popular</span>
+                  <span className="text-[11px] font-extrabold text-white uppercase tracking-wider">
+                    Most Popular
+                  </span>
                   <Star className="h-3 w-3 fill-white text-white" />
                 </div>
               )}
@@ -97,23 +127,33 @@ function SubscriptionsPage() {
                 {/* Plan header */}
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color.gradient} flex items-center justify-center text-xl shadow-sm`}>
+                    <div
+                      className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color.gradient} flex items-center justify-center text-xl shadow-sm`}
+                    >
                       {color.icon}
                     </div>
                     <div>
-                      <h3 className="text-base font-extrabold text-foreground leading-tight">{plan.name}</h3>
-                      <p className="text-xs text-muted-foreground font-medium">{plan.description}</p>
+                      <h3 className="text-base font-extrabold text-foreground leading-tight">
+                        {plan.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground font-medium">
+                        {plan.description}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-xl font-extrabold text-foreground">₹{plan.pricePerMonth}</span>
+                    <span className="text-xl font-extrabold text-foreground">
+                      ₹{plan.pricePerMonth}
+                    </span>
                     <p className="text-[10px] text-muted-foreground font-bold">/month</p>
                   </div>
                 </div>
 
                 {/* Tags row */}
                 <div className="flex items-center gap-2 mb-3">
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full ${color.accent}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full ${color.accent}`}
+                  >
                     <CalendarDays className="h-3 w-3" /> {plan.deliveryFrequency}
                   </span>
                   {savings > 0 && (
@@ -145,7 +185,8 @@ function SubscriptionsPage() {
                     }`}
                     variant={plan.popular || isSelected ? "default" : "outline"}
                   >
-                    {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"} <ArrowRight className="h-4 w-4" />
+                    {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
+                    <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>
@@ -177,7 +218,6 @@ function SubscriptionsPage() {
           ))}
         </div>
       </div>
-
     </div>
   );
 }

@@ -18,9 +18,24 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Quick Links</h4>
             <div className="space-y-2">
-              <Link to="/products" className="block text-sm text-muted-foreground hover:text-primary transition-colors">Products</Link>
-              <Link to="/subscriptions" className="block text-sm text-muted-foreground hover:text-primary transition-colors">Subscriptions</Link>
-              <Link to="/schedule" className="block text-sm text-muted-foreground hover:text-primary transition-colors">Schedule Delivery</Link>
+              <Link
+                to="/products"
+                className="block text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Products
+              </Link>
+              <Link
+                to="/subscriptions"
+                className="block text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Subscriptions
+              </Link>
+              <Link
+                to="/schedule"
+                className="block text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Schedule Delivery
+              </Link>
             </div>
           </div>
           <div>
@@ -35,9 +50,15 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">Contact</h4>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p className="flex items-center gap-2"><Phone className="h-4 w-4" /> +1 (800) AQUA-PURE</p>
-              <p className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@aquapure.com</p>
-              <p className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Available Worldwide</p>
+              <p className="flex items-center gap-2">
+                <Phone className="h-4 w-4" /> +1 (800) AQUA-PURE
+              </p>
+              <p className="flex items-center gap-2">
+                <Mail className="h-4 w-4" /> hello@aquapure.com
+              </p>
+              <p className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" /> Available Worldwide
+              </p>
             </div>
           </div>
         </div>

@@ -7,12 +7,12 @@ export function OfflineBanner() {
   useEffect(() => {
     // Read actual status after hydration to avoid SSR mismatch
     setOffline(!navigator.onLine);
-    const goOnline  = () => setOffline(false);
+    const goOnline = () => setOffline(false);
     const goOffline = () => setOffline(true);
-    window.addEventListener("online",  goOnline);
+    window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     return () => {
-      window.removeEventListener("online",  goOnline);
+      window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
     };
   }, []);

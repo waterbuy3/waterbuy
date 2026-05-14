@@ -13,7 +13,7 @@ export function CalendarScheduler({ onScheduleSelect }: CalendarSchedulerProps) 
   const [slot, setSlot] = useState("Morning (6 AM - 8 AM)");
 
   const frequencies = ["Once", "Daily", "Alternate Days", "Weekly", "Monthly"];
-  
+
   const slots = [
     { id: "morning", label: "Morning (6 AM - 8 AM)", icon: Sun },
     { id: "day", label: "Day (10 AM - 2 PM)", icon: Coffee },
@@ -91,14 +91,20 @@ export function CalendarScheduler({ onScheduleSelect }: CalendarSchedulerProps) 
                   : "bg-card border-border text-foreground hover:bg-accent"
               }`}
             >
-              <s.icon className={`h-6 w-6 ${slot === s.label ? "text-primary" : "text-muted-foreground"}`} />
+              <s.icon
+                className={`h-6 w-6 ${slot === s.label ? "text-primary" : "text-muted-foreground"}`}
+              />
               <span className="text-sm font-medium text-center">{s.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <Button onClick={handleConfirm} variant="hero" className="w-full h-12 text-base mt-4 shadow-water">
+      <Button
+        onClick={handleConfirm}
+        variant="hero"
+        className="w-full h-12 text-base mt-4 shadow-water"
+      >
         Confirm Schedule
       </Button>
     </div>

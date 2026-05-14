@@ -6,12 +6,12 @@ import type { Auth, User, ConfirmationResult } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Only initialise on the browser, and only when real credentials exist
@@ -23,20 +23,20 @@ const isConfigured =
 /** Export so consumers can skip auth gating entirely in demo mode */
 export const isFirebaseConfigured = isConfigured;
 
-let _app:  FirebaseApp | null = null;
-let _auth: Auth | null        = null;
-let _db:   Firestore | null   = null;
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _db: Firestore | null = null;
 
 async function getFirebaseInstances() {
   if (!isConfigured) return { auth: null, db: null };
-  if (_auth && _db)  return { auth: _auth, db: _db };
+  if (_auth && _db) return { auth: _auth, db: _db };
 
-  const { getAuth }      = await import("firebase/auth");
+  const { getAuth } = await import("firebase/auth");
   const { getFirestore } = await import("firebase/firestore");
 
-  _app  = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  _app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   _auth = getAuth(_app);
-  _db   = getFirestore(_app);
+  _db = getFirestore(_app);
   return { auth: _auth, db: _db };
 }
 
@@ -77,9 +77,7 @@ export async function sendOtp(phone: string): Promise<ConfirmationResult> {
   if (!auth) throw new Error("Firebase not configured");
   const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
   if (_recaptchaVerifier) {
-    (
-      _recaptchaVerifier as { clear(): void }
-    ).clear();
+    (_recaptchaVerifier as { clear(): void }).clear();
   }
   _recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
     size: "invisible",
@@ -95,16 +93,17 @@ export async function firebaseSignOut(): Promise<void> {
   await signOut(auth);
 }
 
-export function subscribeToAuthState(
-  callback: (user: User | null) => void,
-): () => void {
+export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
   if (!isConfigured) {
     // Do NOT call callback — keeps isFirebaseReady=false so app runs without auth gate
     return () => {};
   }
   let unsubscribe = () => {};
   getAuthInstance().then((auth) => {
-    if (!auth) { callback(null); return; }
+    if (!auth) {
+      callback(null);
+      return;
+    }
     import("firebase/auth").then(({ onAuthStateChanged }) => {
       unsubscribe = onAuthStateChanged(auth, callback);
     });
@@ -114,40 +113,57 @@ export function subscribeToAuthState(
 
 // ─── Firestore user profile ───────────────────────────────────────────────────
 
+export interface UserAddress {
+  id: string;
+  tag: "Home" | "Work" | "Other";
+  line1: string;
+  pincode: string;
+  landmark?: string;
+  isDefault: boolean;
+}
+
 export interface UserProfile {
-  uid:             string;
-  name:            string;
-  phone:           string;
-  email:           string;
-  photoURL:        string;
-  membershipTier:  "prime" | "standard";
-  referralCode:    string;
-  createdAt:       unknown;
-  ordersCount:     number;
+  uid: string;
+  name: string;
+  phone: string;
+  email: string;
+  photoURL: string;
+  membershipTier: "prime" | "standard";
+  referralCode: string;
+  createdAt: unknown;
+  ordersCount: number;
   litresDelivered: number;
-  streak:          number;
+  streak: number;
+  addresses?: UserAddress[];
 }
 
 export async function upsertUser(user: User): Promise<void> {
   const db = await getDbInstance();
   if (!db) return;
   const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = await import("firebase/firestore");
-  const ref  = doc(db, "users", user.uid);
+  const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     const code = `AQUA${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
     await setDoc(ref, {
-      uid: user.uid, name: user.displayName || "", phone: user.phoneNumber || "",
-      email: user.email || "", photoURL: user.photoURL || "",
-      membershipTier: "standard", referralCode: code,
-      createdAt: serverTimestamp(), ordersCount: 0, litresDelivered: 0, streak: 0,
+      uid: user.uid,
+      name: user.displayName || "",
+      phone: user.phoneNumber || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      membershipTier: "standard",
+      referralCode: code,
+      createdAt: serverTimestamp(),
+      ordersCount: 0,
+      litresDelivered: 0,
+      streak: 0,
     });
   } else {
     await updateDoc(ref, {
-      name:     user.displayName || snap.data().name,
-      phone:    user.phoneNumber || snap.data().phone,
-      email:    user.email       || snap.data().email,
-      photoURL: user.photoURL    || snap.data().photoURL,
+      name: user.displayName || snap.data().name,
+      phone: user.phoneNumber || snap.data().phone,
+      email: user.email || snap.data().email,
+      photoURL: user.photoURL || snap.data().photoURL,
     });
   }
 }
@@ -166,7 +182,10 @@ export function subscribeUserProfile(
 ): () => void {
   let unsubscribe = () => {};
   getDbInstance().then((db) => {
-    if (!db) { callback(null); return; }
+    if (!db) {
+      callback(null);
+      return;
+    }
     import("firebase/firestore").then(({ doc, onSnapshot }) => {
       unsubscribe = onSnapshot(doc(db, "users", uid), (snap) =>
         callback(snap.exists() ? (snap.data() as UserProfile) : null),
@@ -176,16 +195,22 @@ export function subscribeUserProfile(
   return () => unsubscribe();
 }
 
-
 // ─── Shared catalog — real-time listeners ──────────────────────────────────────
 
 export function subscribeProducts(callback: (docs: unknown[]) => void): () => void {
   let unsub = () => {};
   getDbInstance().then((db) => {
-    if (!db) { callback([]); return; }
+    if (!db) {
+      callback([]);
+      return;
+    }
     import("firebase/firestore").then(({ collection, onSnapshot, query, where }) => {
       const q = query(collection(db, "products"), where("active", "==", true));
-      unsub = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), () => callback([]));
+      unsub = onSnapshot(
+        q,
+        (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        () => callback([]),
+      );
     });
   });
   return () => unsub();
@@ -194,10 +219,17 @@ export function subscribeProducts(callback: (docs: unknown[]) => void): () => vo
 export function subscribeCategories(callback: (docs: unknown[]) => void): () => void {
   let unsub = () => {};
   getDbInstance().then((db) => {
-    if (!db) { callback([]); return; }
+    if (!db) {
+      callback([]);
+      return;
+    }
     import("firebase/firestore").then(({ collection, onSnapshot, query, where, orderBy }) => {
       const q = query(collection(db, "categories"), where("active", "==", true), orderBy("order"));
-      unsub = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), () => callback([]));
+      unsub = onSnapshot(
+        q,
+        (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        () => callback([]),
+      );
     });
   });
   return () => unsub();
@@ -206,10 +238,17 @@ export function subscribeCategories(callback: (docs: unknown[]) => void): () => 
 export function subscribeSubscriptionPlans(callback: (docs: unknown[]) => void): () => void {
   let unsub = () => {};
   getDbInstance().then((db) => {
-    if (!db) { callback([]); return; }
+    if (!db) {
+      callback([]);
+      return;
+    }
     import("firebase/firestore").then(({ collection, onSnapshot, query, where }) => {
       const q = query(collection(db, "subscriptionPlans"), where("active", "==", true));
-      unsub = onSnapshot(q, (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), () => callback([]));
+      unsub = onSnapshot(
+        q,
+        (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        () => callback([]),
+      );
     });
   });
   return () => unsub();
@@ -218,31 +257,39 @@ export function subscribeSubscriptionPlans(callback: (docs: unknown[]) => void):
 export function subscribeHomeContent(callback: (data: unknown | null) => void): () => void {
   let unsub = () => {};
   getDbInstance().then((db) => {
-    if (!db) { callback(null); return; }
+    if (!db) {
+      callback(null);
+      return;
+    }
     import("firebase/firestore").then(({ doc, onSnapshot }) => {
-      unsub = onSnapshot(doc(db, "content", "home"), (snap) => callback(snap.exists() ? snap.data() : null), () => callback(null));
+      unsub = onSnapshot(
+        doc(db, "content", "home"),
+        (snap) => callback(snap.exists() ? snap.data() : null),
+        () => callback(null),
+      );
     });
   });
   return () => unsub();
 }
 
 export async function placeOrder(order: {
-  userId:   string;
+  userId: string;
   customer: string;
-  phone:    string;
-  items:    string;
-  total:    number;
-  payment:  string;
-  address:  string;
+  phone: string;
+  items: string;
+  total: number;
+  payment: string;
+  address: string;
 }): Promise<string | null> {
   const db = await getDbInstance();
   if (!db) return null;
-  const { collection, addDoc, serverTimestamp, doc, updateDoc, increment } = await import("firebase/firestore");
+  const { collection, addDoc, serverTimestamp, doc, updateDoc, increment } =
+    await import("firebase/firestore");
   const ref = await addDoc(collection(db, "orders"), {
     ...order,
-    status:    "pending",
-    placedAt:  serverTimestamp(),
-    driver:    null,
+    status: "pending",
+    placedAt: serverTimestamp(),
+    driver: null,
     deliveredAt: null,
   });
   await updateDoc(doc(db, "users", order.userId), { ordersCount: increment(1) });
@@ -253,7 +300,83 @@ export async function getUserOrders(uid: string): Promise<unknown[]> {
   const db = await getDbInstance();
   if (!db) return [];
   const { collection, query, where, orderBy, getDocs } = await import("firebase/firestore");
-  const q = query(collection(db, "orders"), where("userId", "==", uid), orderBy("placedAt", "desc"));
+  const q = query(
+    collection(db, "orders"),
+    where("userId", "==", uid),
+    orderBy("placedAt", "desc"),
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// ─── Address management ───────────────────────────────────────────────────────
+
+export async function saveUserAddress(
+  uid: string,
+  address: Omit<UserAddress, "id">,
+): Promise<string | null> {
+  const db = await getDbInstance();
+  if (!db) return null;
+  const { doc, getDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
+  const id = `addr_${Date.now()}`;
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  const existing: UserAddress[] = snap.exists() ? (snap.data().addresses ?? []) : [];
+  // If this is the first address or marked default, clear other defaults
+  const updated = address.isDefault
+    ? existing.map((a) => ({ ...a, isDefault: false }))
+    : existing;
+  const newAddr: UserAddress = { ...address, id };
+  await updateDoc(ref, { addresses: [...updated, newAddr] });
+  return id;
+}
+
+export async function deleteUserAddress(uid: string, addressId: string): Promise<void> {
+  const db = await getDbInstance();
+  if (!db) return;
+  const { doc, getDoc, updateDoc } = await import("firebase/firestore");
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const existing: UserAddress[] = snap.data().addresses ?? [];
+  await updateDoc(ref, { addresses: existing.filter((a) => a.id !== addressId) });
+}
+
+export async function setDefaultAddress(uid: string, addressId: string): Promise<void> {
+  const db = await getDbInstance();
+  if (!db) return;
+  const { doc, getDoc, updateDoc } = await import("firebase/firestore");
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const existing: UserAddress[] = snap.data().addresses ?? [];
+  await updateDoc(ref, {
+    addresses: existing.map((a) => ({ ...a, isDefault: a.id === addressId })),
+  });
+}
+
+// ─── Schedule ─────────────────────────────────────────────────────────────────
+
+export async function createSchedule(schedule: {
+  userId: string;
+  customer: string;
+  phone: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  frequency: string;
+  startDate: string;
+  timeSlot: string;
+  address: string;
+  total: number;
+}): Promise<string | null> {
+  const db = await getDbInstance();
+  if (!db) return null;
+  const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
+  const ref = await addDoc(collection(db, "schedules"), {
+    ...schedule,
+    status: "active",
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
 }

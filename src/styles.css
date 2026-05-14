@@ -32,7 +32,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
-  
+
   --color-water: var(--water);
   --color-water-light: var(--water-light);
   --color-water-dark: var(--water-dark);
@@ -65,7 +65,7 @@
   --border: oklch(0.93 0.02 240);
   --input: oklch(0.93 0.02 240);
   --ring: oklch(0.55 0.2 250);
-  
+
   /* Water brand tokens */
   --water: oklch(0.6 0.2 230);
   --water-light: oklch(0.8 0.12 210);
@@ -98,7 +98,7 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.65 0.2 240);
-  
+
   --water: oklch(0.65 0.2 240);
   --water-light: oklch(0.4 0.12 230);
   --water-dark: oklch(0.25 0.08 250);
@@ -113,7 +113,11 @@
   body {
     background-color: oklch(0.95 0.01 240); /* Slightly darker body to make the app container pop */
     color: var(--color-foreground);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   .dark body {
@@ -126,7 +130,12 @@
     background: linear-gradient(135deg, var(--color-primary), var(--color-water));
   }
   .gradient-water-hero {
-    background: linear-gradient(160deg, var(--color-water-dark), var(--color-primary), var(--color-water));
+    background: linear-gradient(
+      160deg,
+      var(--color-water-dark),
+      var(--color-primary),
+      var(--color-water)
+    );
   }
   .gradient-water-card {
     background: linear-gradient(135deg, var(--color-water-surface), var(--color-background));
@@ -137,7 +146,7 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  
+
   /* Premium Glassmorphism */
   .glass {
     background: oklch(var(--color-background) / 75%);
@@ -146,22 +155,26 @@
     border: 1px solid oklch(var(--color-foreground) / 10%);
     box-shadow: 0 4px 24px -4px oklch(var(--color-water-dark) / 15%);
   }
-  
+
   .glass-card {
-    background: linear-gradient(145deg, oklch(var(--color-card) / 90%), oklch(var(--color-card) / 60%));
+    background: linear-gradient(
+      145deg,
+      oklch(var(--color-card) / 90%),
+      oklch(var(--color-card) / 60%)
+    );
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid oklch(var(--color-foreground) / 8%);
     box-shadow: 0 8px 32px -8px oklch(var(--color-water-dark) / 20%);
   }
-  
+
   .shadow-water {
     box-shadow: 0 8px 32px -8px oklch(var(--color-primary) / 25%);
   }
   .shadow-water-lg {
     box-shadow: 0 16px 48px -12px oklch(var(--color-primary) / 30%);
   }
-  
+
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -171,49 +184,99 @@
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 @keyframes ripple {
-  0% { transform: scale(1); opacity: 0.4; }
-  100% { transform: scale(2.5); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
 
 @keyframes wave-x {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 @keyframes fill-up {
-  from { height: 0%; }
-  to { height: var(--fill-height, 60%); }
+  from {
+    height: 0%;
+  }
+  to {
+    height: var(--fill-height, 60%);
+  }
 }
 
 @keyframes count-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-up-fade {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes badge-pop {
-  0% { transform: scale(0.7); opacity: 0; }
-  80% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  80% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Hide scrollbar for clean mobile look */
@@ -273,7 +336,9 @@
 
 /* Premium card with hover lift */
 .card-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .card-lift:hover {
   transform: translateY(-2px);
@@ -281,8 +346,12 @@
 }
 
 /* Star rating color */
-.star-filled { color: #f59e0b; }
-.star-empty  { color: #e5e7eb; }
+.star-filled {
+  color: #f59e0b;
+}
+.star-empty {
+  color: #e5e7eb;
+}
 
 /* Offer badge glow */
 .badge-glow {
@@ -301,7 +370,9 @@
   border-radius: inherit;
   padding: 1.5px;
   background: linear-gradient(135deg, var(--color-primary), var(--color-water));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: destination-out;
   mask-composite: exclude;
   pointer-events: none;
@@ -319,7 +390,8 @@
   left: 0;
   width: 200%;
   height: 60px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60'%3E%3Cpath d='M0 30 C200 60 400 0 600 30 C800 60 1000 0 1200 30 L1200 60 L0 60 Z' fill='white' fill-opacity='0.08'/%3E%3C/svg%3E") repeat-x bottom;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60'%3E%3Cpath d='M0 30 C200 60 400 0 600 30 C800 60 1000 0 1200 30 L1200 60 L0 60 Z' fill='white' fill-opacity='0.08'/%3E%3C/svg%3E")
+    repeat-x bottom;
   animation: wave-x 6s linear infinite;
   pointer-events: none;
 }
