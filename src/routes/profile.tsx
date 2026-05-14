@@ -39,7 +39,7 @@ import {
   saveUserAddress,
   deleteUserAddress,
   setDefaultAddress,
-  getUserOrders,
+  subscribeUserOrders,
   type UserAddress,
 } from "@/lib/supabase";
 
@@ -158,33 +158,23 @@ function ProfilePage() {
   const referralCode = profile?.referralCode || "AQUA-DEMO";
   const addresses: UserAddress[] = profile?.addresses ?? [];
 
-  /* Load real orders when sheet opens — with isMounted guard */
+  /* Realtime order subscription — active whenever the orders sheet is open */
   useEffect(() => {
-    if (activeSheet !== "orders" || !profile?.uid) return;
-    let active = true;
+    if (!profile?.uid) return;
     setOrdersLoading(true);
-    getUserOrders(profile.uid)
-      .then((docs) => {
-        if (!active) return;
-        const mapped = (docs as Record<string, unknown>[]).map((d) => ({
-          id: String(d.id ?? ""),
-          date: safeParseDate(d.placedAt),
-          status: String(d.status ?? "pending"),
-          items: String(d.items ?? ""),
-          total: Number(d.total ?? 0),
-        }));
-        setOrders(mapped);
-      })
-      .catch(() => {
-        if (active) setOrders([]);
-      })
-      .finally(() => {
-        if (active) setOrdersLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [activeSheet, profile?.uid]);
+    const unsub = subscribeUserOrders(profile.uid, (docs) => {
+      const mapped = (docs as Record<string, unknown>[]).map((d) => ({
+        id: String(d.id ?? ""),
+        date: safeParseDate(d.placedAt),
+        status: String(d.status ?? "pending"),
+        items: String(d.items ?? ""),
+        total: Number(d.total ?? 0),
+      }));
+      setOrders(mapped);
+      setOrdersLoading(false);
+    });
+    return unsub;
+  }, [profile?.uid]);
 
   const userStats = [
     { icon: Package, value: String(profile?.ordersCount ?? 0), label: "Orders" },

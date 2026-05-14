@@ -333,6 +333,44 @@ export async function getUserOrders(uid: string): Promise<unknown[]> {
   }));
 }
 
+function mapOrder(row: Record<string, unknown>) {
+  return {
+    ...row,
+    userId: row.user_id,
+    placedAt: row.placed_at ? { seconds: new Date(row.placed_at as string).getTime() / 1000 } : null,
+    deliveredAt: row.delivered_at,
+  };
+}
+
+export function subscribeUserOrders(
+  uid: string,
+  callback: (orders: unknown[]) => void,
+): () => void {
+  if (!supabase) { callback([]); return () => {}; }
+
+  const fetch = async () => {
+    const { data } = await supabase!
+      .from("orders")
+      .select("*")
+      .eq("user_id", uid)
+      .order("placed_at", { ascending: false });
+    callback((data ?? []).map((r) => mapOrder(r as Record<string, unknown>)));
+  };
+
+  fetch();
+
+  const channel = supabase
+    .channel(`orders-${uid}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${uid}` },
+      () => fetch(),
+    )
+    .subscribe();
+
+  return () => { supabase!.removeChannel(channel); };
+}
+
 // ─── Address management ───────────────────────────────────────────────────────
 
 export async function saveUserAddress(
