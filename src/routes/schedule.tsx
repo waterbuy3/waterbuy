@@ -11,8 +11,10 @@ import {
 import {
   subscribeProducts,
   subscribeCategories,
+  subscribeDeliverySettings,
   createSchedule,
   type UserAddress,
+  type DeliverySettings,
 } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { MapPin, Package, CheckCircle2, Droplets, CalendarDays, PenLine } from "lucide-react";
@@ -37,6 +39,7 @@ function SchedulePage() {
   const [step, setStep] = useState(1);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATS);
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
 
   useEffect(() => {
     const unsubP = subscribeProducts((docs) => {
@@ -45,9 +48,11 @@ function SchedulePage() {
     const unsubC = subscribeCategories((docs) => {
       if (docs.length > 0) setCategories(docs as Category[]);
     });
+    const unsubS = subscribeDeliverySettings(setDeliverySettings);
     return () => {
       unsubP();
       unsubC();
+      unsubS();
     };
   }, []);
 
@@ -338,6 +343,8 @@ function SchedulePage() {
                 setScheduleData(data);
                 setStep(3);
               }}
+              frequencies={deliverySettings?.frequencies}
+              timeSlots={deliverySettings?.timeSlots}
             />
             <div className="mt-4 text-center">
               <button

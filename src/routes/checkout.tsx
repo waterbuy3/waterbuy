@@ -18,7 +18,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { products as FALLBACK_PRODUCTS, type Product } from "@/lib/data";
-import { subscribeProducts, placeOrder, type UserAddress } from "@/lib/supabase";
+import { subscribeProducts, subscribeDeliverySettings, placeOrder, type UserAddress, type DeliverySettings } from "@/lib/supabase";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -39,6 +39,7 @@ function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savedAddresses: UserAddress[] = profile?.addresses ?? [];
@@ -64,10 +65,11 @@ function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    const unsub = subscribeProducts((docs) => {
+    const unsubP = subscribeProducts((docs) => {
       if (docs.length > 0) setProducts(docs as Product[]);
     });
-    return unsub;
+    const unsubS = subscribeDeliverySettings(setDeliverySettings);
+    return () => { unsubP(); unsubS(); };
   }, []);
 
   const handleSelectAddress = (addr: UserAddress) => {
@@ -93,7 +95,9 @@ function CheckoutPage() {
     })
     .filter(Boolean) as (Product & { qty: number })[];
 
-  const deliveryFee = totalPrice >= 299 ? 0 : 30;
+  const freeAbove = deliverySettings?.freeAbove ?? 299;
+  const baseFee   = deliverySettings?.fee ?? 30;
+  const deliveryFee = totalPrice >= freeAbove ? 0 : baseFee;
   const orderTotal = totalPrice + deliveryFee;
 
   const handlePlaceOrder = async () => {
@@ -330,15 +334,17 @@ function CheckoutPage() {
                 id: "upi" as const,
                 icon: Smartphone,
                 label: "UPI / Net Banking",
-                desc: "PhonePe, GPay, Paytm, and more",
+                desc: deliverySettings?.upiId ? `UPI: ${deliverySettings.upiId}` : "PhonePe, GPay, Paytm, and more",
+                enabled: deliverySettings?.upiEnabled !== false,
               },
               {
                 id: "cod" as const,
                 icon: Truck,
                 label: "Cash on Delivery",
                 desc: "Pay when your order arrives",
+                enabled: deliverySettings?.codEnabled !== false,
               },
-            ].map((method) => (
+            ].filter((m) => m.enabled).map((method) => (
               <button
                 key={method.id}
                 type="button"
@@ -408,7 +414,7 @@ function CheckoutPage() {
       </div>
 
       {/* Sticky place-order CTA */}
-      <div className="fixed bottom-[64px] left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-3 bg-gradient-to-t from-background via-background/90 to-transparent pt-6 z-20">
+      <div className="fixed bottom-[84px] left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-3 bg-gradient-to-t from-background via-background/90 to-transparent pt-6 z-20">
         {(!address.trim() || !pincode.trim()) && (
           <p className="text-center text-xs text-destructive font-semibold mb-2">
             Please select or enter a delivery address and pincode

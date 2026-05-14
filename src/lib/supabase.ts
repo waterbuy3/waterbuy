@@ -191,12 +191,21 @@ export function subscribeUserProfile(
 
 // ─── Catalog — real-time listeners ───────────────────────────────────────────
 
+function mapProduct(row: Record<string, unknown>) {
+  return {
+    ...row,
+    imageUrl: row.image_url ?? row.imageUrl ?? "",
+    deliveryType: row.delivery_type ?? row.deliveryType ?? "All",
+    reviewCount: row.review_count ?? row.reviewCount ?? 0,
+  };
+}
+
 export function subscribeProducts(callback: (docs: unknown[]) => void): () => void {
   if (!supabase) { callback([]); return () => {}; }
 
   const fetch = async () => {
     const { data } = await supabase!.from("products").select("*").eq("active", true);
-    callback(data ?? []);
+    callback((data ?? []).map((r) => mapProduct(r as Record<string, unknown>)));
   };
 
   fetch();
@@ -260,6 +269,53 @@ export function subscribeSubscriptionPlans(callback: (docs: unknown[]) => void):
   return () => { supabase!.removeChannel(channel); };
 }
 
+export interface DeliverySettings {
+  fee: number;
+  freeAbove: number;
+  minOrder: number;
+  etaMins: number;
+  timeSlots: string[];
+  frequencies: string[];
+  servicePincodes: string;
+  codEnabled: boolean;
+  upiEnabled: boolean;
+  upiId: string;
+}
+
+const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
+  fee: 0,
+  freeAbove: 200,
+  minOrder: 50,
+  etaMins: 30,
+  timeSlots: ["Morning (6 AM–8 AM)", "Day (10 AM–2 PM)", "Evening (5 PM–8 PM)"],
+  frequencies: ["Once", "Daily", "Alternate Days", "Weekly", "Monthly"],
+  servicePincodes: "",
+  codEnabled: true,
+  upiEnabled: true,
+  upiId: "",
+};
+
+export function subscribeDeliverySettings(
+  callback: (settings: DeliverySettings) => void,
+): () => void {
+  callback(DEFAULT_DELIVERY_SETTINGS);
+  if (!supabase) return () => {};
+
+  const fetch = async () => {
+    const { data } = await supabase!.from("settings").select("data").eq("id", "delivery").single();
+    callback(data?.data ? { ...DEFAULT_DELIVERY_SETTINGS, ...(data.data as Partial<DeliverySettings>) } : DEFAULT_DELIVERY_SETTINGS);
+  };
+
+  fetch();
+
+  const channel = supabase
+    .channel("settings-delivery")
+    .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: "id=eq.delivery" }, () => fetch())
+    .subscribe();
+
+  return () => { supabase!.removeChannel(channel); };
+}
+
 export function subscribeHomeContent(callback: (data: unknown | null) => void): () => void {
   if (!supabase) { callback(null); return () => {}; }
 
@@ -269,7 +325,9 @@ export function subscribeHomeContent(callback: (data: unknown | null) => void): 
       .select("*")
       .eq("id", "home")
       .single();
-    callback(data ?? null);
+    // Admin saves content inside a `data` JSONB column — unwrap it
+    const content = (data as Record<string, unknown> | null)?.data ?? data;
+    callback(content ?? null);
   };
 
   fetch();

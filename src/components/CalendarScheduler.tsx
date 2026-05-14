@@ -3,22 +3,23 @@ import { format, addDays, isSameDay } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Sun, Moon, Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const SLOT_ICONS: Record<number, React.ElementType> = { 0: Sun, 1: Coffee, 2: Moon };
+
 interface CalendarSchedulerProps {
   onScheduleSelect: (data: { date: Date; frequency: string; slot: string }) => void;
+  frequencies?: string[];
+  timeSlots?: string[];
 }
 
-export function CalendarScheduler({ onScheduleSelect }: CalendarSchedulerProps) {
-  const [selectedDate, setSelectedDate] = useState<Date>(addDays(new Date(), 1)); // Default to tomorrow
-  const [frequency, setFrequency] = useState("Daily");
-  const [slot, setSlot] = useState("Morning (6 AM - 8 AM)");
+export function CalendarScheduler({ onScheduleSelect, frequencies: freqProp, timeSlots: slotProp }: CalendarSchedulerProps) {
+  const frequencies = freqProp?.length ? freqProp : ["Once", "Daily", "Alternate Days", "Weekly", "Monthly"];
+  const slotLabels  = slotProp?.length ? slotProp  : ["Morning (6 AM–8 AM)", "Day (10 AM–2 PM)", "Evening (5 PM–8 PM)"];
 
-  const frequencies = ["Once", "Daily", "Alternate Days", "Weekly", "Monthly"];
+  const [selectedDate, setSelectedDate] = useState<Date>(addDays(new Date(), 1));
+  const [frequency, setFrequency] = useState(frequencies[1] ?? frequencies[0]);
+  const [slot, setSlot] = useState(slotLabels[0]);
 
-  const slots = [
-    { id: "morning", label: "Morning (6 AM - 8 AM)", icon: Sun },
-    { id: "day", label: "Day (10 AM - 2 PM)", icon: Coffee },
-    { id: "evening", label: "Evening (5 PM - 8 PM)", icon: Moon },
-  ];
+  const slots = slotLabels.map((label, i) => ({ id: `slot-${i}`, label, icon: SLOT_ICONS[i] ?? Clock }));
 
   // Generate next 14 days for the quick calendar
   const nextDays = Array.from({ length: 14 }).map((_, i) => addDays(new Date(), i + 1));
