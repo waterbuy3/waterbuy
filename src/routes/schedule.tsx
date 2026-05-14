@@ -312,7 +312,7 @@ function SchedulePage() {
                   <span className="w-8 text-center font-bold">{quantity}</span>
                   <button
                     className="w-10 h-10 rounded-lg flex items-center justify-center bg-background shadow-sm text-foreground"
-                    onClick={() => setQuantity(quantity + 1)}
+                    onClick={() => setQuantity(Math.min(99, quantity + 1))}
                   >
                     +
                   </button>

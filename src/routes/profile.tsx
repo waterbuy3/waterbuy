@@ -7,6 +7,7 @@ import {
   Shield,
   HelpCircle,
   ChevronRight,
+  ChevronLeft,
   LogOut,
   Package,
   Star,
@@ -92,7 +93,24 @@ interface OrderRecord {
   status: string;
   items: string;
   total: number;
+  payment?: string;
+  address?: string;
 }
+
+const ORDER_STEPS = [
+  { key: "pending",    label: "Order Placed",   icon: "🛒" },
+  { key: "confirmed",  label: "Confirmed",       icon: "✅" },
+  { key: "in_transit", label: "Out for Delivery",icon: "🚚" },
+  { key: "delivered",  label: "Delivered",       icon: "🎉" },
+] as const;
+
+const statusColor: Record<string, string> = {
+  pending:    "text-amber-600 bg-amber-50",
+  confirmed:  "text-blue-600 bg-blue-50",
+  in_transit: "text-purple-600 bg-purple-50",
+  delivered:  "text-emerald-600 bg-emerald-50",
+  cancelled:  "text-red-500 bg-red-50",
+};
 
 function safeParseDate(ts: unknown): string {
   if (!ts) return "—";
@@ -117,6 +135,7 @@ function ProfilePage() {
   const [activeSheet, setActiveSheet] = useState<SheetId>(null);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
 
   /* Payment methods as local state so delete works */
   const [payments, setPayments] = useState([
@@ -158,7 +177,7 @@ function ProfilePage() {
   const referralCode = profile?.referralCode || "AQUA-DEMO";
   const addresses: UserAddress[] = profile?.addresses ?? [];
 
-  /* Realtime order subscription — active whenever the orders sheet is open */
+  /* Realtime order subscription */
   useEffect(() => {
     if (!profile?.uid) return;
     setOrdersLoading(true);
@@ -169,9 +188,13 @@ function ProfilePage() {
         status: String(d.status ?? "pending"),
         items: String(d.items ?? ""),
         total: Number(d.total ?? 0),
+        payment: String(d.payment ?? ""),
+        address: String(d.address ?? ""),
       }));
       setOrders(mapped);
       setOrdersLoading(false);
+      // keep selectedOrder in sync with live status updates
+      setSelectedOrder((prev) => prev ? (mapped.find((o) => o.id === prev.id) ?? prev) : null);
     });
     return unsub;
   }, [profile?.uid]);
@@ -431,49 +454,139 @@ function ProfilePage() {
       {/* ── SHEETS ── */}
 
       {/* My Orders */}
-      <Sheet open={activeSheet === "orders"} onOpenChange={(o) => !o && setActiveSheet(null)}>
-        <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh] overflow-y-auto pb-10">
+      <Sheet open={activeSheet === "orders"} onOpenChange={(o) => { if (!o) { setActiveSheet(null); setSelectedOrder(null); } }}>
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] overflow-y-auto pb-10">
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" /> My Orders
+              {selectedOrder ? (
+                <button onClick={() => setSelectedOrder(null)} className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <ChevronLeft className="h-4 w-4" /> Order #{selectedOrder.id.slice(0, 8).toUpperCase()}
+                </button>
+              ) : (
+                <><Package className="h-5 w-5 text-primary" /> My Orders</>
+              )}
             </SheetTitle>
           </SheetHeader>
-          <div className="space-y-3">
-            {ordersLoading && (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-20 rounded-2xl shimmer" />
-                ))}
+
+          {/* Order detail with status timeline */}
+          {selectedOrder ? (
+            <div className="space-y-5">
+              {/* Status badge */}
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold capitalize ${statusColor[selectedOrder.status] ?? "text-slate-600 bg-slate-100"}`}>
+                {selectedOrder.status === "cancelled" ? "❌" : ORDER_STEPS.find(s => s.key === selectedOrder.status)?.icon ?? "📦"}
+                {" "}{selectedOrder.status.replace("_", " ")}
               </div>
-            )}
-            {!ordersLoading && orders.length === 0 && (
-              <div className="text-center py-10">
-                <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm font-bold text-muted-foreground">No orders yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Your placed orders will appear here.</p>
-              </div>
-            )}
-            {orders.map((order) => (
-              <div key={order.id} className="bg-muted/40 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <Droplets className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-extrabold text-foreground">
-                      #{order.id.slice(0, 8).toUpperCase()}
-                    </span>
-                    <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full capitalize">
-                      {order.status}
-                    </span>
+
+              {/* Progress timeline */}
+              {selectedOrder.status !== "cancelled" && (
+                <div className="relative">
+                  <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border/60" />
+                  <div className="space-y-4">
+                    {ORDER_STEPS.map((step, i) => {
+                      const currentIdx = ORDER_STEPS.findIndex(s => s.key === selectedOrder.status);
+                      const done = i <= currentIdx;
+                      const active = i === currentIdx;
+                      return (
+                        <div key={step.key} className="flex items-start gap-4 relative">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 text-sm transition-all ${
+                            done ? "bg-primary text-white shadow-md" : "bg-muted text-muted-foreground border-2 border-border"
+                          } ${active ? "ring-2 ring-primary/30 ring-offset-2" : ""}`}>
+                            {done ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs">{i + 1}</span>}
+                          </div>
+                          <div className="pt-1">
+                            <p className={`text-sm font-bold ${done ? "text-foreground" : "text-muted-foreground"}`}>
+                              {step.label}
+                            </p>
+                            {active && (
+                              <p className="text-[11px] text-primary font-medium mt-0.5">Current status</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
-                  <p className="text-[10px] text-muted-foreground">{order.date}</p>
                 </div>
-                <span className="text-sm font-extrabold text-foreground shrink-0">₹{order.total}</span>
+              )}
+              {selectedOrder.status === "cancelled" && (
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-medium">
+                  This order was cancelled. Contact support if you need help.
+                </div>
+              )}
+
+              {/* Order details */}
+              <div className="bg-muted/40 rounded-2xl p-4 space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Items</span>
+                  <span className="font-semibold text-right max-w-[60%]">{selectedOrder.items}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="font-extrabold text-primary">₹{selectedOrder.total}</span>
+                </div>
+                {selectedOrder.payment && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Payment</span>
+                    <span className="font-semibold capitalize">{selectedOrder.payment === "cod" ? "Cash on Delivery" : selectedOrder.payment.toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Placed</span>
+                  <span className="font-semibold">{selectedOrder.date}</span>
+                </div>
+                {selectedOrder.address && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Address</span>
+                    <span className="font-semibold text-right">{selectedOrder.address}</span>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            /* Orders list */
+            <div className="space-y-3">
+              {ordersLoading && (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 rounded-2xl shimmer" />
+                  ))}
+                </div>
+              )}
+              {!ordersLoading && orders.length === 0 && (
+                <div className="text-center py-10">
+                  <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-muted-foreground">No orders yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your placed orders will appear here.</p>
+                </div>
+              )}
+              {orders.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => setSelectedOrder(order)}
+                  className="w-full bg-muted/40 rounded-2xl p-4 flex items-center gap-3 text-left hover:bg-muted/60 active:bg-muted/80 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Droplets className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-extrabold text-foreground">
+                        #{order.id.slice(0, 8).toUpperCase()}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColor[order.status] ?? "text-slate-600 bg-slate-100"}`}>
+                        {order.status.replace("_", " ")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
+                    <p className="text-[10px] text-muted-foreground">{order.date}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-sm font-extrabold text-foreground">₹{order.total}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 

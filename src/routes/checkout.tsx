@@ -37,6 +37,7 @@ function CheckoutPage() {
   const [landmark, setLandmark] = useState("");
   const [placed, setPlaced] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -98,23 +99,30 @@ function CheckoutPage() {
   const handlePlaceOrder = async () => {
     if (!address.trim() || !pincode.trim()) return;
     setPlacing(true);
+    setPlaceError(null);
     const itemsSummary = cartItems.map((item) => `${item.name} × ${item.qty}`).join(", ");
     const fullAddress = [address.trim(), pincode.trim(), landmark.trim()]
       .filter(Boolean)
       .join(", ");
-    await placeOrder({
-      userId: profile?.uid ?? "guest",
-      customer: profile?.name || "Guest",
-      phone: profile?.phone || "",
-      items: itemsSummary,
-      total: orderTotal,
-      payment: paymentMethod,
-      address: fullAddress,
-    });
-    setPlacing(false);
-    setPlaced(true);
-    clearCart();
-    redirectTimerRef.current = setTimeout(() => navigate({ to: "/" }), 3200);
+    try {
+      const orderId = await placeOrder({
+        userId: profile?.uid ?? "guest",
+        customer: profile?.name || "Guest",
+        phone: profile?.phone || "",
+        items: itemsSummary,
+        total: orderTotal,
+        payment: paymentMethod,
+        address: fullAddress,
+      });
+      if (!orderId) throw new Error("Order could not be placed. Please try again.");
+      clearCart();
+      setPlaced(true);
+      redirectTimerRef.current = setTimeout(() => navigate({ to: "/" }), 3200);
+    } catch (err) {
+      setPlaceError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setPlacing(false);
+    }
   };
 
   /* ── Empty cart ── */
@@ -404,6 +412,11 @@ function CheckoutPage() {
         {(!address.trim() || !pincode.trim()) && (
           <p className="text-center text-xs text-destructive font-semibold mb-2">
             Please select or enter a delivery address and pincode
+          </p>
+        )}
+        {placeError && (
+          <p className="text-center text-xs text-destructive font-semibold mb-2 bg-destructive/10 rounded-xl px-3 py-2">
+            {placeError}
           </p>
         )}
         <Button
