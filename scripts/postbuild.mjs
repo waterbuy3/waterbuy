@@ -16,6 +16,11 @@ const jsFiles = files
 const mainJs = jsFiles[0].name;
 const mainCss = files.find((f) => f.endsWith(".css")) ?? null;
 
+// Minimal bootstrap data that TanStack Start's hydrate() expects on window.$_TSR.
+// Without this, the invariant "Expected to find bootstrap data on window.$_TSR" fires
+// because the client bundle was built for SSR hydration, not standalone SPA mode.
+const bootstrap = `window.$_TSR={router:{matches:[],manifest:undefined,dehydratedData:undefined,lastMatchId:undefined},buffer:[],initialized:false,h:function(){},t:new Map()};`;
+
 const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -30,9 +35,9 @@ const html = `<!DOCTYPE html>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180x180.png" />
     ${mainCss ? `<link rel="stylesheet" crossorigin href="/assets/${mainCss}" />` : ""}
+    <script>${bootstrap}</script>
   </head>
   <body>
-    <div id="root"></div>
     <script type="module" src="/assets/${mainJs}"></script>
   </body>
 </html>
