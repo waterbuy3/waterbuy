@@ -66,6 +66,22 @@ export async function verifyOtp(phone: string, token: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase not configured");
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+export async function signUpWithEmail(email: string, password: string, fullName: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase not configured");
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName } },
+  });
+  if (error) throw error;
+}
+
 export async function supabaseSignOut(): Promise<void> {
   if (!supabase) return;
   await supabase.auth.signOut();

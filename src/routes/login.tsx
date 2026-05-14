@@ -1,15 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Droplets, Phone, ArrowRight, ChevronLeft, ShieldCheck } from "lucide-react";
-import { signInWithGoogle, sendOtp, verifyOtp } from "@/lib/supabase";
+import { Droplets, Phone, ArrowRight, ChevronLeft, ShieldCheck, Mail } from "lucide-react";
+import { signInWithGoogle, sendOtp, verifyOtp, signInWithEmail, signUpWithEmail } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-type Step = "landing" | "phone" | "otp";
+type Step = "landing" | "phone" | "otp" | "email";
 
 const COUNTRY_CODES = [
   { code: "+91", flag: "🇮🇳", name: "India" },
@@ -31,6 +31,10 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(0);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     if (user) navigate({ to: "/" });
@@ -107,6 +111,27 @@ function LoginPage() {
     }
   };
 
+  const handleEmailAuth = async () => {
+    if (!email || !password) { setError("Enter your email and password."); return; }
+    if (isSignUp && !fullName) { setError("Enter your full name."); return; }
+    try {
+      setLoading(true);
+      setError("");
+      if (isSignUp) {
+        await signUpWithEmail(email, password, fullName);
+        setError(""); // success — AuthContext will pick up the session
+      } else {
+        await signInWithEmail(email, password);
+      }
+      navigate({ to: "/" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg || "Authentication failed. Check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResend = async () => {
     if (timer > 0) return;
     setOtp(["", "", "", "", "", ""]);
@@ -125,6 +150,7 @@ function LoginPage() {
           {step === "landing" && "Pure water. Delivered fast."}
           {step === "phone" && "Enter your mobile number"}
           {step === "otp" && "Verify your number"}
+          {step === "email" && (isSignUp ? "Create an account" : "Sign in with email")}
         </p>
       </div>
 
@@ -157,6 +183,14 @@ function LoginPage() {
           >
             <Phone className="h-5 w-5" />
             Continue with Phone
+          </button>
+
+          <button
+            onClick={() => { setStep("email"); setError(""); }}
+            className="w-full flex items-center justify-center gap-3 bg-background border-2 border-border/60 rounded-2xl py-4 font-extrabold text-foreground text-sm hover:bg-muted/50 active:scale-[0.98] transition-all shadow-sm"
+          >
+            <Mail className="h-5 w-5" />
+            Continue with Email
           </button>
 
           {error && (
@@ -222,6 +256,71 @@ function LoginPage() {
           <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-success" />
             We'll send a 6-digit code. Standard rates may apply.
+          </p>
+        </div>
+      )}
+
+      {/* ── Email step ───────────────────────────────────── */}
+      {step === "email" && (
+        <div className="flex-1 flex flex-col gap-4">
+          <button
+            onClick={() => { setStep("landing"); setError(""); }}
+            className="flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground -ml-1 mb-2"
+          >
+            <ChevronLeft className="h-4 w-4" /> Back
+          </button>
+
+          {isSignUp && (
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => { setFullName(e.target.value); setError(""); }}
+              placeholder="Full name"
+              className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
+            />
+          )}
+
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()}
+            placeholder="Email address"
+            className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
+          />
+
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()}
+            placeholder="Password"
+            className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
+          />
+
+          {error && (
+            <p className="text-xs font-semibold text-destructive bg-destructive/10 rounded-xl px-4 py-2">
+              {error}
+            </p>
+          )}
+
+          <Button
+            onClick={handleEmailAuth}
+            disabled={loading}
+            className="w-full h-14 rounded-2xl font-extrabold text-sm shadow-water gap-2"
+          >
+            {loading ? (isSignUp ? "Creating account…" : "Signing in…") : (isSignUp ? "Create Account" : "Sign In")}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+
+          <p className="text-center text-sm text-muted-foreground">
+            {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+            <button
+              onClick={() => { setIsSignUp((s) => !s); setError(""); }}
+              className="font-extrabold text-primary hover:underline"
+            >
+              {isSignUp ? "Sign in" : "Sign up"}
+            </button>
           </p>
         </div>
       )}
