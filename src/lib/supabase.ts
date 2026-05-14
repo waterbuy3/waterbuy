@@ -384,6 +384,7 @@ export async function placeOrder(order: {
   total: number;
   payment: string;
   address: string;
+  litres?: number;
 }): Promise<string | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -396,6 +397,7 @@ export async function placeOrder(order: {
       total: order.total,
       payment: order.payment,
       address: order.address,
+      litres: order.litres ?? 0,
       status: "pending",
     })
     .select("id")

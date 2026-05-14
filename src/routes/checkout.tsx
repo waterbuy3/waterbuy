@@ -100,11 +100,22 @@ function CheckoutPage() {
   const deliveryFee = totalPrice >= freeAbove ? 0 : baseFee;
   const orderTotal = totalPrice + deliveryFee;
 
+  // Parse litres from product size string e.g. "5L" → 5, "500ml" → 0.5
+  const parseLitres = (size: string): number => {
+    const s = size?.toLowerCase() ?? "";
+    const ml = s.match(/(\d+(?:\.\d+)?)\s*ml/);
+    if (ml) return parseFloat(ml[1]) / 1000;
+    const l = s.match(/(\d+(?:\.\d+)?)\s*l/);
+    if (l) return parseFloat(l[1]);
+    return 0;
+  };
+
   const handlePlaceOrder = async () => {
     if (!address.trim() || !pincode.trim()) return;
     setPlacing(true);
     setPlaceError(null);
     const itemsSummary = cartItems.map((item) => `${item.name} × ${item.qty}`).join(", ");
+    const totalLitres = cartItems.reduce((sum, item) => sum + parseLitres(item.size) * item.qty, 0);
     const fullAddress = [address.trim(), pincode.trim(), landmark.trim()]
       .filter(Boolean)
       .join(", ");
@@ -117,6 +128,7 @@ function CheckoutPage() {
         total: orderTotal,
         payment: paymentMethod,
         address: fullAddress,
+        litres: +totalLitres.toFixed(2),
       });
       if (!orderId) throw new Error("Order could not be placed. Please try again.");
       clearCart();

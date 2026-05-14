@@ -211,37 +211,64 @@ function HomePage() {
       </section>
 
       {/* Carousel */}
-      <section className="px-4 pb-4">
-        <div className="overflow-hidden rounded-2xl shadow-water" ref={emblaRef}>
+      <section className="pb-4">
+        <div className="overflow-hidden" ref={emblaRef}>
           <div className="flex">
             {banners.map((banner, idx) => (
-              <div key={idx} className="flex-[0_0_100%] min-w-0">
+              <div key={idx} className="flex-[0_0_100%] min-w-0 px-4">
                 <div
-                  className={`relative bg-gradient-to-r ${banner.bg} h-44 flex items-end p-5 rounded-2xl overflow-hidden wave-bg`}
+                  className={`relative bg-gradient-to-br ${banner.bg} h-48 rounded-3xl overflow-hidden`}
+                  style={{ boxShadow: "0 8px 32px -8px rgba(0,0,0,0.25)" }}
                 >
-                  <div className="z-10 flex-1">
-                    <span className="inline-block px-2 py-0.5 bg-white/25 backdrop-blur-md rounded-full text-[9px] font-extrabold text-white uppercase tracking-widest mb-2">
-                      {banner.badge}
-                    </span>
-                    <h2 className="text-[22px] font-extrabold text-white leading-tight tracking-tight">
-                      {banner.title}
-                    </h2>
-                    <p className="text-xs text-white/80 mt-1 font-semibold">{banner.sub}</p>
-                  </div>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-6xl opacity-30 select-none">
+                  {/* Decorative circles */}
+                  <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10" />
+                  <div className="absolute -bottom-10 -right-4 w-28 h-28 rounded-full bg-black/10" />
+                  <div className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/8" />
+
+                  {/* Big emoji — positioned right, large */}
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[88px] leading-none select-none drop-shadow-lg" aria-hidden="true">
                     {banner.emoji}
+                  </div>
+
+                  {/* Content */}
+                  <div className="relative z-10 h-full flex flex-col justify-between p-5">
+                    {/* Top: badge */}
+                    <div>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-black/20 backdrop-blur-md rounded-full text-[9px] font-extrabold text-white uppercase tracking-widest">
+                        <span className="w-1 h-1 rounded-full bg-white/80 inline-block" />
+                        {banner.badge}
+                      </span>
+                    </div>
+
+                    {/* Bottom: text + CTA */}
+                    <div>
+                      <h2 className="text-[20px] font-extrabold text-white leading-tight tracking-tight max-w-[60%]">
+                        {banner.title}
+                      </h2>
+                      <div className="flex items-center justify-between mt-3">
+                        <p className="text-[11px] text-white/80 font-bold bg-black/15 px-2.5 py-1 rounded-full">
+                          {banner.sub}
+                        </p>
+                        <Link to="/products">
+                          <button className="flex items-center gap-1 px-3.5 py-1.5 bg-white rounded-full text-[11px] font-extrabold text-slate-800 shadow-sm active:scale-95 transition-transform">
+                            Order Now <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="flex justify-center gap-1.5 mt-2">
+        {/* Dots */}
+        <div className="flex justify-center gap-1.5 mt-3">
           {banners.map((_, i) => (
             <button
               key={i}
               onClick={() => emblaApi?.scrollTo(i)}
-              className={`rounded-full transition-all duration-300 ${i === selectedIndex ? "w-5 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-border"}`}
+              className={`rounded-full transition-all duration-300 ${i === selectedIndex ? "w-6 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-border"}`}
             />
           ))}
         </div>
