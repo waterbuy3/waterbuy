@@ -9,7 +9,7 @@ import {
   type Category,
   type Product,
 } from "@/lib/data";
-import { subscribeProducts, subscribeCategories, subscribeHomeContent } from "@/lib/firebase";
+import { subscribeProducts, subscribeCategories, subscribeHomeContent } from "@/lib/supabase";
 import {
   Plus,
   ChevronRight,

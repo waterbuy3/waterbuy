@@ -7,7 +7,7 @@ import {
   type Product,
   type Category,
 } from "@/lib/data";
-import { subscribeProducts, subscribeCategories } from "@/lib/firebase";
+import { subscribeProducts, subscribeCategories } from "@/lib/supabase";
 import {
   ShoppingCart,
   Filter,

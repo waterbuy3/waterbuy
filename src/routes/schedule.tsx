@@ -13,7 +13,7 @@ import {
   subscribeCategories,
   createSchedule,
   type UserAddress,
-} from "@/lib/firebase";
+} from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { MapPin, Package, CheckCircle2, Droplets, CalendarDays, PenLine } from "lucide-react";
 import { CalendarScheduler } from "@/components/CalendarScheduler";

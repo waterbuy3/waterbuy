@@ -41,7 +41,7 @@ import {
   setDefaultAddress,
   getUserOrders,
   type UserAddress,
-} from "@/lib/firebase";
+} from "@/lib/supabase";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({

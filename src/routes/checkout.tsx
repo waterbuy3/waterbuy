@@ -18,7 +18,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { products as FALLBACK_PRODUCTS, type Product } from "@/lib/data";
-import { subscribeProducts, placeOrder, type UserAddress } from "@/lib/firebase";
+import { subscribeProducts, placeOrder, type UserAddress } from "@/lib/supabase";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,

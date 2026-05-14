@@ -1,5 +1,5 @@
 import { Check, Plus, Home, Briefcase, MapPin } from "lucide-react";
-import type { UserAddress } from "@/lib/firebase";
+import type { UserAddress } from "@/lib/supabase";
 
 interface AddressPickerProps {
   addresses: UserAddress[];

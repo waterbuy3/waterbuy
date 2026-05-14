@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
-import { subscribeSubscriptionPlans } from "@/lib/firebase";
+import { subscribeSubscriptionPlans } from "@/lib/supabase";
 import {
   Check,
   ChevronRight,

@@ -3,12 +3,11 @@ import {
   subscribeToAuthState,
   upsertUser,
   subscribeUserProfile,
-  getGoogleRedirectResult,
-  firebaseSignOut,
-  isFirebaseConfigured as FIREBASE_CONFIGURED,
+  supabaseSignOut,
+  isSupabaseConfigured,
   type User,
   type UserProfile,
-} from "@/lib/firebase";
+} from "@/lib/supabase";
 
 interface AuthContextValue {
   user: User | null;
@@ -31,35 +30,28 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(FIREBASE_CONFIGURED);
-  const [firebaseReady, setReady] = useState(false);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [ready, setReady] = useState(false);
   const unsubProfileRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!FIREBASE_CONFIGURED) {
+    if (!isSupabaseConfigured) {
       setLoading(false);
       return;
     }
 
-    getGoogleRedirectResult()
-      .then(async (result) => {
-        if (result?.user) await upsertUser(result.user);
-      })
-      .catch(() => {});
-
-    const unsubAuth = subscribeToAuthState((firebaseUser) => {
-      // Clean up previous profile subscription before subscribing to new user
+    const unsubAuth = subscribeToAuthState((supabaseUser) => {
       if (unsubProfileRef.current) {
         unsubProfileRef.current();
         unsubProfileRef.current = null;
       }
 
       setReady(true);
-      setUser(firebaseUser);
+      setUser(supabaseUser);
 
-      if (firebaseUser) {
-        upsertUser(firebaseUser).catch(() => {});
-        unsubProfileRef.current = subscribeUserProfile(firebaseUser.uid, (p) => {
+      if (supabaseUser) {
+        upsertUser(supabaseUser).catch(() => {});
+        unsubProfileRef.current = subscribeUserProfile(supabaseUser.uid, (p) => {
           setProfile(p);
           setLoading(false);
         });
@@ -84,9 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         loading,
-        signOut: firebaseSignOut,
-        isFirebaseReady: firebaseReady,
-        isFirebaseConfigured: FIREBASE_CONFIGURED,
+        signOut: supabaseSignOut,
+        isFirebaseReady: ready,
+        isFirebaseConfigured: isSupabaseConfigured,
       }}
     >
       {children}
