@@ -110,6 +110,22 @@ export interface UserAddress {
   isDefault: boolean;
 }
 
+export interface WaterLog {
+  date: string; // "YYYY-MM-DD"
+  litres: number;
+  entries: number[]; // e.g. [0.25, 0.25, 0.5]
+}
+
+export interface ActivePlan {
+  planId: string;
+  planName: string;
+  frequency: string;
+  price: number;
+  startDate: string;
+  nextDelivery?: string;
+  quantity?: number;
+}
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -122,6 +138,9 @@ export interface UserProfile {
   ordersCount: number;
   litresDelivered: number;
   streak: number;
+  streakLastDate?: string;
+  waterLog?: WaterLog;
+  activePlan?: ActivePlan | null;
   addresses?: UserAddress[];
 }
 
@@ -138,6 +157,9 @@ function rowToProfile(row: Record<string, unknown>): UserProfile {
     ordersCount: (row.orders_count as number) ?? 0,
     litresDelivered: (row.litres_delivered as number) ?? 0,
     streak: (row.streak as number) ?? 0,
+    streakLastDate: (row.streak_last_date as string) ?? undefined,
+    waterLog: (row.water_log as WaterLog) ?? undefined,
+    activePlan: (row.active_plan as ActivePlan | null) ?? null,
     addresses: (row.addresses as UserAddress[]) ?? [],
   };
 }
@@ -269,6 +291,12 @@ export function subscribeSubscriptionPlans(callback: (docs: unknown[]) => void):
   return () => { supabase!.removeChannel(channel); };
 }
 
+export interface DeliveryArea {
+  pincode: string;
+  name: string;
+  etaMins: number;
+}
+
 export interface DeliverySettings {
   fee: number;
   freeAbove: number;
@@ -280,6 +308,7 @@ export interface DeliverySettings {
   codEnabled: boolean;
   upiEnabled: boolean;
   upiId: string;
+  areas: DeliveryArea[];
 }
 
 const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
@@ -293,6 +322,7 @@ const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
   codEnabled: true,
   upiEnabled: true,
   upiId: "",
+  areas: [],
 };
 
 export function subscribeDeliverySettings(
@@ -503,6 +533,59 @@ export async function createSchedule(schedule: {
     .single();
   if (error) return null;
   return (data as { id: string } | null)?.id ?? null;
+}
+
+// ─── Water Log ────────────────────────────────────────────────────────────────
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function logWaterIntake(uid: string, amount: number): Promise<WaterLog | null> {
+  if (!supabase) return null;
+  const today = todayStr();
+
+  const { data: raw } = await supabase!.from("profiles").select("water_log, streak, streak_last_date").eq("uid", uid).single();
+  const row = raw as { water_log: WaterLog | null; streak: number; streak_last_date: string | null } | null;
+
+  const existingLog: WaterLog = row?.water_log?.date === today
+    ? row.water_log
+    : { date: today, litres: 0, entries: [] };
+
+  const newEntries = [...existingLog.entries, amount];
+  const newLitres = +(existingLog.litres + amount).toFixed(3);
+  const newLog: WaterLog = { date: today, litres: newLitres, entries: newEntries };
+
+  // Streak logic: increment if first log of today and yesterday was logged
+  let newStreak = row?.streak ?? 0;
+  let newStreakDate = row?.streak_last_date ?? null;
+
+  if (row?.water_log?.date !== today) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    if (newStreakDate === yesterdayStr || newStreakDate === null) {
+      newStreak = newStreak + 1;
+    } else {
+      newStreak = 1; // reset streak
+    }
+    newStreakDate = today;
+  }
+
+  await supabase!.from("profiles").update({
+    water_log: newLog,
+    streak: newStreak,
+    streak_last_date: newStreakDate,
+  }).eq("uid", uid);
+
+  return newLog;
+}
+
+// ─── Active Plan ──────────────────────────────────────────────────────────────
+
+export async function setUserActivePlan(uid: string, plan: ActivePlan | null): Promise<void> {
+  if (!supabase) return;
+  await supabase!.from("profiles").update({ active_plan: plan }).eq("uid", uid);
 }
 
 /*

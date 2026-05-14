@@ -347,23 +347,43 @@ function ProfilePage() {
       {/* Active Subscription */}
       <div className="mx-4 mt-4">
         <Link to="/subscriptions">
-          <div className="bg-gradient-to-r from-primary to-water rounded-2xl p-4 flex items-center gap-3 shadow-water relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
-            <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-              <Repeat className="h-6 w-6 text-white" />
+          {profile?.activePlan ? (
+            <div className="bg-gradient-to-r from-primary to-water rounded-2xl p-4 flex items-center gap-3 shadow-water relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
+              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Repeat className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 z-10">
+                <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">Active Plan</span>
+                <h3 className="text-sm font-extrabold text-white leading-tight">
+                  {profile.activePlan.planName}
+                  {profile.activePlan.quantity ? ` · ${profile.activePlan.quantity}× cans` : ""}
+                </h3>
+                <p className="text-[11px] text-white/75 flex items-center gap-1 mt-0.5">
+                  <CalendarDays className="h-3 w-3" />
+                  {profile.activePlan.nextDelivery
+                    ? `Next: ${profile.activePlan.nextDelivery}`
+                    : profile.activePlan.frequency}
+                </p>
+              </div>
+              <div className="z-10 text-right">
+                <span className="text-base font-extrabold text-white">₹{profile.activePlan.price}</span>
+                <p className="text-[10px] text-white/70">/month</p>
+              </div>
             </div>
-            <div className="flex-1 z-10">
-              <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">Active Plan</span>
-              <h3 className="text-sm font-extrabold text-white leading-tight">Alternate Days · 2×5L</h3>
-              <p className="text-[11px] text-white/75 flex items-center gap-1 mt-0.5">
-                <CalendarDays className="h-3 w-3" /> Next: Tomorrow, 7 AM
-              </p>
+          ) : (
+            <div className="bg-card border border-border/50 rounded-2xl p-4 flex items-center gap-3 shadow-sm relative overflow-hidden">
+              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Repeat className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">No Active Plan</span>
+                <h3 className="text-sm font-bold text-foreground leading-tight">Subscribe & save up to 30%</h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Tap to explore subscription plans</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
             </div>
-            <div className="z-10 text-right">
-              <span className="text-base font-extrabold text-white">₹1,299</span>
-              <p className="text-[10px] text-white/70">/month</p>
-            </div>
-          </div>
+          )}
         </Link>
       </div>
 

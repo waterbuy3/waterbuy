@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
-import { subscribeSubscriptionPlans } from "@/lib/supabase";
+import { subscribeSubscriptionPlans, setUserActivePlan } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
   Check,
   ChevronRight,
@@ -51,9 +52,27 @@ const planColors: Record<string, { gradient: string; accent: string; icon: strin
 };
 
 function SubscriptionsPage() {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(FALLBACK_PLANS);
   const [loading, setLoading] = useState(true);
+  const [subscribing, setSubscribing] = useState(false);
+
+  const handleSubscribe = async (plan: SubscriptionPlan) => {
+    if (profile?.uid) {
+      setSubscribing(true);
+      await setUserActivePlan(profile.uid, {
+        planId: plan.id,
+        planName: plan.name,
+        frequency: plan.deliveryFrequency,
+        price: plan.pricePerMonth,
+        startDate: new Date().toISOString().slice(0, 10),
+      }).catch(() => {});
+      setSubscribing(false);
+    }
+    navigate({ to: "/schedule" });
+  };
 
   useEffect(() => {
     /* Show fallback data after 2 s if Firestore hasn't responded */
@@ -188,19 +207,19 @@ function SubscriptionsPage() {
                 </ul>
 
                 {/* CTA */}
-                <Link to="/schedule">
-                  <Button
-                    className={`w-full gap-2 rounded-xl h-11 text-sm font-extrabold transition-all ${
-                      plan.popular || isSelected
-                        ? `bg-gradient-to-r ${color.gradient} text-white shadow-water border-0`
-                        : "border-border/60 bg-muted text-foreground hover:bg-muted/80"
-                    }`}
-                    variant={plan.popular || isSelected ? "default" : "outline"}
-                  >
-                    {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                <Button
+                  disabled={subscribing}
+                  onClick={() => handleSubscribe(plan)}
+                  className={`w-full gap-2 rounded-xl h-11 text-sm font-extrabold transition-all ${
+                    plan.popular || isSelected
+                      ? `bg-gradient-to-r ${color.gradient} text-white shadow-water border-0`
+                      : "border-border/60 bg-muted text-foreground hover:bg-muted/80"
+                  }`}
+                  variant={plan.popular || isSelected ? "default" : "outline"}
+                >
+                  {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* Selected checkmark */}

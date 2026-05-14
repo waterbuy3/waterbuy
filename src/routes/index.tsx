@@ -9,7 +9,15 @@ import {
   type Category,
   type Product,
 } from "@/lib/data";
-import { subscribeProducts, subscribeCategories, subscribeHomeContent } from "@/lib/supabase";
+import {
+  subscribeProducts,
+  subscribeCategories,
+  subscribeHomeContent,
+  subscribeDeliverySettings,
+  logWaterIntake,
+  type DeliverySettings,
+} from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
   Plus,
   ChevronRight,
@@ -46,6 +54,7 @@ function StarRating({ rating }: { rating: number }) {
 
 function HomePage() {
   const { cart, addToCart, removeFromCart, totalItems, totalPrice } = useCart();
+  const { profile } = useAuth();
 
   // Live data from Firestore — falls back to hardcoded if unconfigured/empty
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
@@ -93,21 +102,37 @@ function HomePage() {
       if (d.testimonials) setTestimonials(d.testimonials as typeof FALLBACK_TESTIMONIALS);
       if (d.banners) setBanners(d.banners as Banner[]);
     });
+    const unsubD = subscribeDeliverySettings((s) => setDeliverySettings(s));
     return () => {
       unsubP();
       unsubC();
       unsubH();
+      unsubD();
     };
   }, []);
+
+  // Sync today's water log from profile
+  useEffect(() => {
+    if (!profile) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const log = profile.waterLog;
+    if (log?.date === today) {
+      setHydration(log.litres);
+    } else {
+      setHydration(0);
+    }
+  }, [profile?.uid, profile?.waterLog?.date, profile?.waterLog?.litres]);
 
   const instantProducts = products
     .filter((p) => p.deliveryType === "All" || p.deliveryType === "Instant")
     .slice(0, 6);
   const featuredProducts = products.filter((p) => p.popular).slice(0, 4);
 
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [hydration, setHydration] = useState(1.2);
+  const [hydration, setHydration] = useState(0);
+  const [loggingWater, setLoggingWater] = useState(false);
   const hydrationGoal = 2.0;
   const hydrationPct = Math.min((hydration / hydrationGoal) * 100, 100);
 
@@ -132,6 +157,15 @@ function HomePage() {
     { label: "Bulk Order", icon: Package, color: "text-purple-500 bg-purple-50", to: "/products" },
   ];
 
+  // Compute area ETA from user's default address pincode
+  const userPincode = profile?.addresses?.find((a) => a.isDefault)?.pincode ?? "";
+  const matchedArea = deliverySettings?.areas?.find((a) => a.pincode === userPincode);
+  const areaEta = matchedArea?.etaMins ?? deliverySettings?.etaMins ?? appStats.avgDeliveryMin;
+  const areaName = matchedArea?.name ?? (userPincode ? `PIN ${userPincode}` : null);
+  const isServiceable = !deliverySettings?.servicePincodes ||
+    !userPincode ||
+    deliverySettings.servicePincodes.split(/[\s,]+/).filter(Boolean).includes(userPincode);
+
   return (
     <div className="bg-muted/30 min-h-screen pb-8">
       {/* Live strip */}
@@ -139,13 +173,17 @@ function HomePage() {
         <div className="flex items-center gap-2">
           <span className="live-dot" />
           <span className="text-[11px] font-bold text-white/90">
-            Live · Delivering in your area
+            {isServiceable
+              ? areaName
+                ? `Live · Delivering to ${areaName}`
+                : "Live · Delivering in your area"
+              : "Check if we deliver to your area"}
           </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] font-semibold text-white/75">
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {appStats.avgDeliveryMin} min avg
+            {areaEta} min avg
           </span>
           <span className="flex items-center gap-1">
             <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
@@ -291,16 +329,18 @@ function HomePage() {
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <Flame className="h-4 w-4 text-amber-300" />
-                  <span className="text-[11px] font-extrabold text-white/80 uppercase tracking-wider">
-                    3-Day Streak!
-                  </span>
-                </div>
+                {(profile?.streak ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Flame className="h-4 w-4 text-amber-300" />
+                    <span className="text-[11px] font-extrabold text-white/80 uppercase tracking-wider">
+                      {profile!.streak}-Day Streak!
+                    </span>
+                  </div>
+                )}
                 <h3 className="text-lg font-extrabold text-white">Today's Hydration</h3>
               </div>
               <div className="text-right">
-                <span className="text-2xl font-extrabold text-white">{hydration.toFixed(1)}L</span>
+                <span className="text-2xl font-extrabold text-white">{hydration.toFixed(2)}L</span>
                 <p className="text-[10px] text-white/70 font-bold">/ {hydrationGoal}L goal</p>
               </div>
             </div>
@@ -313,12 +353,22 @@ function HomePage() {
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-white/70 font-semibold">
                 {hydration >= hydrationGoal
-                  ? "🎉 Goal reached!"
-                  : `${(hydrationGoal - hydration).toFixed(1)}L more to go`}
+                  ? "Goal reached!"
+                  : `${(hydrationGoal - hydration).toFixed(2)}L more to go`}
               </p>
               <button
-                onClick={() => setHydration((h) => Math.min(+(h + 0.25).toFixed(2), 3))}
-                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 active:bg-white/40 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-white transition-colors"
+                disabled={loggingWater}
+                onClick={async () => {
+                  if (!profile?.uid) {
+                    setHydration((h) => Math.min(+(h + 0.25).toFixed(3), 3));
+                    return;
+                  }
+                  setLoggingWater(true);
+                  const result = await logWaterIntake(profile.uid, 0.25);
+                  if (result) setHydration(Math.min(result.litres, 3));
+                  setLoggingWater(false);
+                }}
+                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 active:bg-white/40 disabled:opacity-60 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-white transition-colors"
               >
                 <Plus className="h-3 w-3" /> Log 250ml
               </button>
