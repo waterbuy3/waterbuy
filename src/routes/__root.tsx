@@ -155,7 +155,7 @@ function AppShell() {
       <OfflineBanner />
       <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col bg-background shadow-2xl relative overflow-hidden">
         <Header />
-        <main className="flex-1 pb-20">
+        <main className="flex-1 pb-24">
           <Outlet />
         </main>
         <BottomNav />

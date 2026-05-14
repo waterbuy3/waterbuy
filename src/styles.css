@@ -52,12 +52,12 @@
   --card-foreground: oklch(0.15 0.03 240);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.03 240);
-  --primary: oklch(0.55 0.2 250); /* Deep Sea Blue */
+  --primary: oklch(0.52 0.225 253); /* Ocean Blue — vivid & rich */
   --primary-foreground: oklch(0.99 0.002 240);
   --secondary: oklch(0.95 0.03 240);
   --secondary-foreground: oklch(0.3 0.05 240);
-  --muted: oklch(0.97 0.02 240);
-  --muted-foreground: oklch(0.5 0.03 240);
+  --muted: oklch(0.965 0.015 240);
+  --muted-foreground: oklch(0.48 0.035 240);
   --accent: oklch(0.92 0.06 210);
   --accent-foreground: oklch(0.2 0.08 240);
   --destructive: oklch(0.577 0.245 27.325);

@@ -577,7 +577,7 @@ function HomePage() {
 
       {/* Global cart bar */}
       {totalItems > 0 && (
-        <div className="fixed bottom-[68px] left-0 right-0 max-w-md mx-auto px-4 z-50 animate-in slide-in-from-bottom-3 duration-300">
+        <div className="fixed bottom-[84px] left-0 right-0 max-w-md mx-auto px-4 z-50 animate-in slide-in-from-bottom-3 duration-300">
           <Link to="/checkout">
             <div className="bg-success text-white rounded-2xl px-4 py-3 flex items-center shadow-2xl justify-between">
               <div className="flex items-center gap-3">

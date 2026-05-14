@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(git push *)",
+      "Read(//c/CursorProjects/hydration-hub-admin/**)"
+    ]
+  }
+}
