@@ -72,7 +72,8 @@ function LoginPage() {
       setTimer(30);
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (e: unknown) {
-      setError((e as Error).message || "Failed to send OTP. Check the number and try again.");
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg || "Failed to send OTP. Check the number and try again.");
     } finally {
       setLoading(false);
     }

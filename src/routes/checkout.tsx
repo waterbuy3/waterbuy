@@ -3,7 +3,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AddressPicker } from "@/components/AddressPicker";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronLeft,
   MapPin,
@@ -38,10 +38,11 @@ function CheckoutPage() {
   const [placed, setPlaced] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savedAddresses: UserAddress[] = profile?.addresses ?? [];
 
-  /* Pre-select default address on mount */
+  /* Pre-select default address when profile/addresses first load */
   useEffect(() => {
     if (savedAddresses.length > 0 && !selectedAddressId) {
       const def = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0];
@@ -50,7 +51,16 @@ function CheckoutPage() {
       setPincode(def.pincode);
       setLandmark(def.landmark ?? "");
     }
-  }, [savedAddresses.length]);
+  // Re-run when uid changes (login after mount) or address count changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.uid, savedAddresses.length]);
+
+  /* Cleanup redirect timer on unmount */
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const unsub = subscribeProducts((docs) => {
@@ -104,7 +114,7 @@ function CheckoutPage() {
     setPlacing(false);
     setPlaced(true);
     clearCart();
-    setTimeout(() => navigate({ to: "/" }), 3200);
+    redirectTimerRef.current = setTimeout(() => navigate({ to: "/" }), 3200);
   };
 
   /* ── Empty cart ── */

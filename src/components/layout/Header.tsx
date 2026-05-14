@@ -113,7 +113,9 @@ export function Header() {
             <button
               type="button"
               aria-label="Detect my location"
-              className="flex flex-col min-w-0 cursor-pointer group text-left"
+              aria-busy={isLocating}
+              disabled={isLocating}
+              className="flex flex-col min-w-0 cursor-pointer group text-left disabled:cursor-wait"
               onClick={handleGetLocation}
             >
               <div className="flex items-center gap-0.5">

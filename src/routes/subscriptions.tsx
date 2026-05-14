@@ -53,12 +53,20 @@ const planColors: Record<string, { gradient: string; accent: string; icon: strin
 function SubscriptionsPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(FALLBACK_PLANS);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    /* Show fallback data after 2 s if Firestore hasn't responded */
+    const fallbackTimer = setTimeout(() => setLoading(false), 2000);
     const unsub = subscribeSubscriptionPlans((docs) => {
       if (docs.length > 0) setPlans(docs as SubscriptionPlan[]);
+      setLoading(false);
+      clearTimeout(fallbackTimer);
     });
-    return unsub;
+    return () => {
+      unsub();
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   const perks = [
@@ -93,7 +101,11 @@ function SubscriptionsPage() {
 
       {/* Plan Cards */}
       <div className="px-4 -mt-4 space-y-4">
-        {plans.map((plan) => {
+        {loading &&
+          [1, 2, 3].map((i) => (
+            <div key={i} className="h-52 rounded-2xl shimmer" />
+          ))}
+        {!loading && plans.map((plan) => {
           const color = planColors[plan.id];
           const savings = planSavings[plan.id] || 0;
           const isSelected = selectedPlan === plan.id;

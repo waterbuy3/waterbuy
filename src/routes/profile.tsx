@@ -28,12 +28,13 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   saveUserAddress,
   deleteUserAddress,
@@ -51,13 +52,6 @@ export const Route = createFileRoute("/profile")({
   }),
   component: ProfilePage,
 });
-
-/* ─── Static mock data for payment methods ───────────────────────────────── */
-
-const MOCK_PAYMENTS = [
-  { id: "p1", type: "upi", label: "traitsoftwares@oksbi", icon: Smartphone },
-  { id: "p2", type: "card", label: "•••• •••• •••• 4242", icon: CreditCard },
-];
 
 const FAQ_ITEMS = [
   {
@@ -82,8 +76,6 @@ const FAQ_ITEMS = [
   },
 ];
 
-/* ─── Types ──────────────────────────────────────────────────────────────── */
-
 type SheetId =
   | "orders"
   | "addresses"
@@ -102,7 +94,21 @@ interface OrderRecord {
   total: number;
 }
 
-/* ─── Component ─────────────────────────────────────────────────────────── */
+function safeParseDate(ts: unknown): string {
+  if (!ts) return "—";
+  if (typeof ts === "object" && ts !== null && "seconds" in (ts as Record<string, unknown>)) {
+    const secs = (ts as Record<string, unknown>).seconds;
+    if (typeof secs === "number") {
+      return new Date(secs * 1000).toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+  }
+  return "—";
+}
 
 function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -111,6 +117,12 @@ function ProfilePage() {
   const [activeSheet, setActiveSheet] = useState<SheetId>(null);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+
+  /* Payment methods as local state so delete works */
+  const [payments, setPayments] = useState([
+    { id: "p1", type: "upi", label: "traitsoftwares@oksbi", icon: Smartphone },
+    { id: "p2", type: "card", label: "•••• •••• •••• 4242", icon: CreditCard },
+  ]);
 
   /* Address form state */
   const [newLine1, setNewLine1] = useState("");
@@ -130,6 +142,9 @@ function ProfilePage() {
     newsletter: false,
   });
 
+  /* Privacy inline edit state */
+  const [privacyInfo, setPrivacyInfo] = useState<string | null>(null);
+
   const displayName = profile?.name || user?.displayName || "Guest";
   const phone = profile?.phone || user?.phoneNumber || "";
   const email = profile?.email || user?.email || "";
@@ -143,25 +158,32 @@ function ProfilePage() {
   const referralCode = profile?.referralCode || "AQUA-DEMO";
   const addresses: UserAddress[] = profile?.addresses ?? [];
 
-  /* Load real orders when sheet opens */
+  /* Load real orders when sheet opens — with isMounted guard */
   useEffect(() => {
     if (activeSheet !== "orders" || !profile?.uid) return;
+    let active = true;
     setOrdersLoading(true);
     getUserOrders(profile.uid)
       .then((docs) => {
+        if (!active) return;
         const mapped = (docs as Record<string, unknown>[]).map((d) => ({
           id: String(d.id ?? ""),
-          date: d.placedAt
-            ? new Date((d.placedAt as { seconds: number }).seconds * 1000).toLocaleString()
-            : "—",
+          date: safeParseDate(d.placedAt),
           status: String(d.status ?? "pending"),
           items: String(d.items ?? ""),
           total: Number(d.total ?? 0),
         }));
         setOrders(mapped);
       })
-      .catch(() => setOrders([]))
-      .finally(() => setOrdersLoading(false));
+      .catch(() => {
+        if (active) setOrders([]);
+      })
+      .finally(() => {
+        if (active) setOrdersLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [activeSheet, profile?.uid]);
 
   const userStats = [
@@ -175,59 +197,23 @@ function ProfilePage() {
     {
       title: "Account",
       items: [
-        {
-          icon: Package,
-          label: "My Orders",
-          desc: "View past and active orders",
-          sheet: "orders" as SheetId,
-        },
-        {
-          icon: MapPin,
-          label: "Manage Addresses",
-          desc: "Add or edit delivery locations",
-          sheet: "addresses" as SheetId,
-        },
-        {
-          icon: CreditCard,
-          label: "Payment Methods",
-          desc: "Cards, UPI",
-          sheet: "payments" as SheetId,
-        },
+        { icon: Package, label: "My Orders", desc: "View past and active orders", sheet: "orders" as SheetId },
+        { icon: MapPin, label: "Manage Addresses", desc: "Add or edit delivery locations", sheet: "addresses" as SheetId },
+        { icon: CreditCard, label: "Payment Methods", desc: "Cards, UPI", sheet: "payments" as SheetId },
       ],
     },
     {
       title: "Preferences",
       items: [
-        {
-          icon: Bell,
-          label: "Notifications",
-          desc: "Delivery alerts and offers",
-          sheet: "notifications" as SheetId,
-        },
-        {
-          icon: Shield,
-          label: "Privacy & Security",
-          desc: "Password and security settings",
-          sheet: "privacy" as SheetId,
-        },
+        { icon: Bell, label: "Notifications", desc: "Delivery alerts and offers", sheet: "notifications" as SheetId },
+        { icon: Shield, label: "Privacy & Security", desc: "Password and security settings", sheet: "privacy" as SheetId },
       ],
     },
     {
       title: "Support",
       items: [
-        {
-          icon: HelpCircle,
-          label: "Help & Support",
-          desc: "FAQs and customer care",
-          sheet: "help" as SheetId,
-        },
-        {
-          icon: Share2,
-          label: "Refer & Earn",
-          desc: "Get ₹50 for every friend",
-          sheet: "refer" as SheetId,
-          badge: "₹50 reward",
-        },
+        { icon: HelpCircle, label: "Help & Support", desc: "FAQs and customer care", sheet: "help" as SheetId },
+        { icon: Share2, label: "Refer & Earn", desc: "Get ₹50 for every friend", sheet: "refer" as SheetId, badge: "₹50 reward" },
       ],
     },
   ];
@@ -257,7 +243,7 @@ function ProfilePage() {
     }
   };
 
-  /* ── Address CRUD ── */
+  /* Address CRUD */
   const handleDeleteAddress = async (id: string) => {
     if (!profile?.uid) return;
     await deleteUserAddress(profile.uid, id).catch(() => {});
@@ -287,7 +273,6 @@ function ProfilePage() {
     setSavingAddress(false);
   };
 
-  /* ── Render ── */
   return (
     <div className="bg-muted/20 min-h-screen pb-28">
       {/* Profile Hero */}
@@ -318,13 +303,9 @@ function ProfilePage() {
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-success border-2 border-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-extrabold text-white tracking-tight truncate">
-              {displayName}
-            </h1>
+            <h1 className="text-xl font-extrabold text-white tracking-tight truncate">{displayName}</h1>
             {phone && <p className="text-sm text-white/80 font-medium">{phone}</p>}
-            {email && !phone && (
-              <p className="text-sm text-white/80 font-medium truncate">{email}</p>
-            )}
+            {email && !phone && <p className="text-sm text-white/80 font-medium truncate">{email}</p>}
             <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur">
               <Trophy className="h-3 w-3 text-amber-300" />
               <span className="text-[10px] font-extrabold text-white uppercase tracking-wide">
@@ -359,12 +340,8 @@ function ProfilePage() {
               <Repeat className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1 z-10">
-              <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">
-                Active Plan
-              </span>
-              <h3 className="text-sm font-extrabold text-white leading-tight">
-                Alternate Days · 2×5L
-              </h3>
+              <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">Active Plan</span>
+              <h3 className="text-sm font-extrabold text-white leading-tight">Alternate Days · 2×5L</h3>
               <p className="text-[11px] text-white/75 flex items-center gap-1 mt-0.5">
                 <CalendarDays className="h-3 w-3" /> Next: Tomorrow, 7 AM
               </p>
@@ -432,7 +409,6 @@ function ProfilePage() {
                     </div>
                   </div>
                 );
-
                 if ((item as { link?: string }).link) {
                   return (
                     <Link key={itemIdx} to={(item as unknown as { link: string }).link as "/"}>
@@ -462,7 +438,7 @@ function ProfilePage() {
         </button>
       </div>
 
-      {/* ──────────────── SHEETS ──────────────── */}
+      {/* ── SHEETS ── */}
 
       {/* My Orders */}
       <Sheet open={activeSheet === "orders"} onOpenChange={(o) => !o && setActiveSheet(null)}>
@@ -474,7 +450,11 @@ function ProfilePage() {
           </SheetHeader>
           <div className="space-y-3">
             {ordersLoading && (
-              <p className="text-center text-sm text-muted-foreground py-6">Loading orders…</p>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-20 rounded-2xl shimmer" />
+                ))}
+              </div>
             )}
             {!ordersLoading && orders.length === 0 && (
               <div className="text-center py-10">
@@ -489,7 +469,7 @@ function ProfilePage() {
                   <Droplets className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-extrabold text-foreground">
                       #{order.id.slice(0, 8).toUpperCase()}
                     </span>
@@ -497,12 +477,10 @@ function ProfilePage() {
                       {order.status}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{order.items}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
                   <p className="text-[10px] text-muted-foreground">{order.date}</p>
                 </div>
-                <span className="text-sm font-extrabold text-foreground shrink-0">
-                  ₹{order.total}
-                </span>
+                <span className="text-sm font-extrabold text-foreground shrink-0">₹{order.total}</span>
               </div>
             ))}
           </div>
@@ -556,6 +534,7 @@ function ProfilePage() {
                 <button
                   onClick={() => handleDeleteAddress(addr.id)}
                   className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors shrink-0"
+                  aria-label="Delete address"
                 >
                   <Trash2 className="h-4 w-4 text-destructive/60" />
                 </button>
@@ -571,9 +550,7 @@ function ProfilePage() {
                       type="button"
                       onClick={() => setNewTag(t)}
                       className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
-                        newTag === t
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border/40 text-muted-foreground"
+                        newTag === t ? "border-primary bg-primary/10 text-primary" : "border-border/40 text-muted-foreground"
                       }`}
                     >
                       {t}
@@ -655,7 +632,13 @@ function ProfilePage() {
             </SheetTitle>
           </SheetHeader>
           <div className="space-y-3">
-            {MOCK_PAYMENTS.map((pm) => (
+            {payments.length === 0 && (
+              <div className="text-center py-6">
+                <CreditCard className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm font-bold text-muted-foreground">No payment methods saved</p>
+              </div>
+            )}
+            {payments.map((pm) => (
               <div key={pm.id} className="bg-muted/40 rounded-2xl p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                   <pm.icon className="h-5 w-5 text-primary" />
@@ -664,23 +647,27 @@ function ProfilePage() {
                   <p className="text-sm font-bold">{pm.label}</p>
                   <p className="text-[11px] text-muted-foreground capitalize">{pm.type}</p>
                 </div>
-                <button className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                <button
+                  onClick={() => setPayments((prev) => prev.filter((p) => p.id !== pm.id))}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
+                  aria-label={`Remove ${pm.label}`}
+                >
                   <Trash2 className="h-4 w-4 text-destructive/60" />
                 </button>
               </div>
             ))}
-            <button className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 transition-colors">
-              <Plus className="h-4 w-4" /> Add Payment Method
-            </button>
+            <div className="bg-muted/30 rounded-2xl p-4 flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                To add a UPI ID or card, pay via your bank's UPI app (GPay, PhonePe, Paytm) at checkout — your preferred method will be remembered automatically.
+              </p>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
 
       {/* Notifications */}
-      <Sheet
-        open={activeSheet === "notifications"}
-        onOpenChange={(o) => !o && setActiveSheet(null)}
-      >
+      <Sheet open={activeSheet === "notifications"} onOpenChange={(o) => !o && setActiveSheet(null)}>
         <SheetContent side="bottom" className="rounded-t-3xl pb-10">
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
@@ -689,27 +676,12 @@ function ProfilePage() {
           </SheetHeader>
           <div className="space-y-1">
             {[
-              {
-                key: "delivery" as const,
-                label: "Delivery Alerts",
-                desc: "Live order and delivery updates",
-              },
-              {
-                key: "offers" as const,
-                label: "Offers & Discounts",
-                desc: "Exclusive deals and promotions",
-              },
-              {
-                key: "reminders" as const,
-                label: "Subscription Reminders",
-                desc: "Upcoming delivery reminders",
-              },
+              { key: "delivery" as const, label: "Delivery Alerts", desc: "Live order and delivery updates" },
+              { key: "offers" as const, label: "Offers & Discounts", desc: "Exclusive deals and promotions" },
+              { key: "reminders" as const, label: "Subscription Reminders", desc: "Upcoming delivery reminders" },
               { key: "newsletter" as const, label: "Newsletter", desc: "Monthly hydration tips" },
             ].map((n) => (
-              <div
-                key={n.key}
-                className="flex items-center justify-between p-4 rounded-2xl hover:bg-muted/30 transition-colors"
-              >
+              <div key={n.key} className="flex items-center justify-between p-4 rounded-2xl hover:bg-muted/30 transition-colors">
                 <div>
                   <p className="text-sm font-bold">{n.label}</p>
                   <p className="text-[11px] text-muted-foreground">{n.desc}</p>
@@ -725,7 +697,7 @@ function ProfilePage() {
       </Sheet>
 
       {/* Privacy & Security */}
-      <Sheet open={activeSheet === "privacy"} onOpenChange={(o) => !o && setActiveSheet(null)}>
+      <Sheet open={activeSheet === "privacy"} onOpenChange={(o) => { if (!o) { setActiveSheet(null); setPrivacyInfo(null); } }}>
         <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh] overflow-y-auto pb-10">
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
@@ -733,6 +705,12 @@ function ProfilePage() {
             </SheetTitle>
           </SheetHeader>
           <div className="space-y-3">
+            {privacyInfo && (
+              <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3">
+                <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-xs font-medium text-foreground">{privacyInfo}</p>
+              </div>
+            )}
             <div className="bg-muted/40 rounded-2xl divide-y divide-border/40 overflow-hidden">
               {[
                 { icon: Phone, label: "Phone Number", value: phone || "Not linked" },
@@ -749,7 +727,12 @@ function ProfilePage() {
                       <p className="text-sm font-bold">{item.value}</p>
                     </div>
                   </div>
-                  <button className="text-xs text-primary font-bold">Edit</button>
+                  <button
+                    onClick={() => setPrivacyInfo(`To update your ${item.label.toLowerCase()}, please contact support at support@aquapure.in or call 1800-AQUA-PURE.`)}
+                    className="text-xs text-primary font-bold"
+                  >
+                    Edit
+                  </button>
                 </div>
               ))}
             </div>
@@ -759,10 +742,16 @@ function ProfilePage() {
                 Data & Privacy
               </h3>
               <div className="space-y-3">
-                <button className="w-full text-left text-sm font-bold text-foreground hover:text-primary transition-colors">
+                <button
+                  onClick={() => setPrivacyInfo("Your data export will be emailed to " + (email || "your registered email") + " within 48 hours. Contact support@aquapure.in to request this.")}
+                  className="w-full text-left text-sm font-bold text-foreground hover:text-primary transition-colors"
+                >
                   Download My Data
                 </button>
-                <button className="w-full text-left text-sm font-bold text-destructive hover:text-destructive/80 transition-colors">
+                <button
+                  onClick={() => setPrivacyInfo("To permanently delete your account, email support@aquapure.in with the subject 'Account Deletion Request'. We'll process it within 7 business days.")}
+                  className="w-full text-left text-sm font-bold text-destructive hover:text-destructive/80 transition-colors"
+                >
                   Delete Account
                 </button>
               </div>
@@ -779,26 +768,12 @@ function ProfilePage() {
               <HelpCircle className="h-5 w-5 text-primary" /> Help & Support
             </SheetTitle>
           </SheetHeader>
-
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
-              {
-                icon: Phone,
-                label: "Call Us",
-                sub: "1800-AQUA-PURE",
-                color: "bg-green-50 border-green-200 text-green-700",
-              },
-              {
-                icon: Mail,
-                label: "Email",
-                sub: "support@aquapure.in",
-                color: "bg-blue-50 border-blue-200 text-blue-700",
-              },
+              { icon: Phone, label: "Call Us", sub: "1800-AQUA-PURE", color: "bg-green-50 border-green-200 text-green-700" },
+              { icon: Mail, label: "Email", sub: "support@aquapure.in", color: "bg-blue-50 border-blue-200 text-blue-700" },
             ].map((c, i) => (
-              <div
-                key={i}
-                className={`rounded-2xl border p-4 flex flex-col items-center gap-2 text-center ${c.color}`}
-              >
+              <div key={i} className={`rounded-2xl border p-4 flex flex-col items-center gap-2 text-center ${c.color}`}>
                 <c.icon className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-extrabold">{c.label}</p>
@@ -807,10 +782,7 @@ function ProfilePage() {
               </div>
             ))}
           </div>
-
-          <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mb-3">
-            FAQs
-          </h3>
+          <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mb-3">FAQs</h3>
           <div className="space-y-2">
             {FAQ_ITEMS.map((faq, i) => (
               <div key={i} className="bg-muted/40 rounded-2xl overflow-hidden">
@@ -844,7 +816,6 @@ function ProfilePage() {
               <Gift className="h-5 w-5 text-amber-500" /> Refer & Earn
             </SheetTitle>
           </SheetHeader>
-
           <div className="text-center mb-6">
             <div className="w-20 h-20 rounded-3xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
               <Gift className="h-10 w-10 text-amber-600" />
@@ -854,29 +825,19 @@ function ProfilePage() {
               For every friend who places their first order, you both get ₹50 off your next order.
             </p>
           </div>
-
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
-            <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest mb-2">
-              Your Referral Code
-            </p>
+            <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest mb-2">Your Referral Code</p>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-extrabold text-amber-900 tracking-widest">
-                {referralCode}
-              </span>
+              <span className="text-2xl font-extrabold text-amber-900 tracking-widest">{referralCode}</span>
               <button
                 onClick={copyReferral}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-200 text-amber-800 text-xs font-extrabold hover:bg-amber-300 transition-colors"
               >
-                {copied ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
+                {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
           </div>
-
           <Button
             onClick={handleNativeShare}
             className="w-full h-12 rounded-2xl font-extrabold bg-amber-500 hover:bg-amber-600 text-white border-0"
@@ -884,7 +845,6 @@ function ProfilePage() {
             <Share2 className="h-4 w-4 mr-2" />
             Share with Friends
           </Button>
-
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
               { value: "₹50", label: "You earn" },

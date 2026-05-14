@@ -97,6 +97,7 @@ function SchedulePage() {
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const filteredProducts =
     selectedCategory === "all" ? products : products.filter((p) => p.category === selectedCategory);
@@ -106,21 +107,27 @@ function SchedulePage() {
   const handleConfirm = async () => {
     if (!address.trim() || !selectedProductData || !scheduleData.date) return;
     setSubmitting(true);
-    await createSchedule({
-      userId: profile?.uid ?? user?.uid ?? "guest",
-      customer: profile?.name || user?.displayName || "Guest",
-      phone: profile?.phone || user?.phoneNumber || "",
-      productId: selectedProductData.id,
-      productName: selectedProductData.name,
-      quantity,
-      frequency: scheduleData.frequency,
-      startDate: scheduleData.date.toISOString().split("T")[0],
-      timeSlot: scheduleData.slot,
-      address: address.trim(),
-      total: selectedProductData.price * quantity,
-    }).catch(() => {});
-    setSubmitting(false);
-    setSubmitted(true);
+    setSubmitError(null);
+    try {
+      await createSchedule({
+        userId: profile?.uid ?? user?.uid ?? "guest",
+        customer: profile?.name || user?.displayName || "Guest",
+        phone: profile?.phone || user?.phoneNumber || "",
+        productId: selectedProductData.id,
+        productName: selectedProductData.name,
+        quantity,
+        frequency: scheduleData.frequency,
+        startDate: scheduleData.date.toISOString().split("T")[0],
+        timeSlot: scheduleData.slot,
+        address: address.trim(),
+        total: selectedProductData.price * quantity,
+      });
+      setSubmitted(true);
+    } catch {
+      setSubmitError("Failed to save schedule. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -394,31 +401,6 @@ function SchedulePage() {
                 )}
               </div>
 
-              {selectedProductData?.category === "apartment" && (
-                <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in duration-300">
-                  <div>
-                    <label className="text-xs font-medium text-foreground mb-1 block">
-                      Society/Apartment Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Green Valley"
-                      className="w-full rounded-xl border-2 border-border/50 bg-background/50 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-foreground mb-1 block">
-                      Block / Tank Location
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Block A Underground"
-                      className="w-full rounded-xl border-2 border-border/50 bg-background/50 px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-
               <div className="rounded-2xl bg-primary/5 border border-primary/20 p-5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-muted-foreground">Total per delivery</span>
@@ -429,11 +411,19 @@ function SchedulePage() {
                 <p className="text-xs text-primary font-medium">Pay via UPI or Cash on Delivery</p>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              {submitError && (
+                <div className="flex items-start gap-2 bg-destructive/8 border border-destructive/20 rounded-xl px-4 py-3">
+                  <span className="text-destructive text-base shrink-0 mt-0.5">⚠</span>
+                  <p className="text-xs font-semibold text-destructive">{submitError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
                 <Button
                   variant="outline"
                   className="rounded-xl h-14 w-14 p-0 flex items-center justify-center shrink-0"
                   onClick={() => setStep(2)}
+                  disabled={submitting}
                 >
                   <CalendarDays className="h-5 w-5" />
                 </Button>
