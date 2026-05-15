@@ -409,7 +409,8 @@ export async function placeOrder(order: {
   payment: string;
   address: string;
   litres?: number;
-  orderType?: "cart" | "subscription";
+  orderType?: "cart" | "subscription" | "schedule";
+  scheduleId?: string;
 }): Promise<string | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -425,6 +426,7 @@ export async function placeOrder(order: {
       litres: order.litres ?? 0,
       status: "pending",
       order_type: order.orderType ?? "cart",
+      schedule_id: order.scheduleId ?? null,
     })
     .select("id")
     .single();
@@ -572,7 +574,27 @@ export async function createSchedule(schedule: {
     .select("id")
     .single();
   if (error) return null;
-  return (data as { id: string } | null)?.id ?? null;
+  const scheduleId = (data as { id: string } | null)?.id ?? null;
+  if (!scheduleId) return null;
+
+  // Create the first delivery order so vendor sees it immediately in their queue.
+  // placed_at is set to the chosen start date so it sorts correctly.
+  await supabase.from("orders").insert({
+    user_id: schedule.userId,
+    customer: schedule.customer,
+    phone: schedule.phone,
+    items: `${schedule.productName} × ${schedule.quantity}`,
+    total: schedule.total,
+    payment: "cod",
+    address: schedule.address,
+    litres: 0,
+    status: "pending",
+    order_type: "schedule",
+    schedule_id: scheduleId,
+    placed_at: new Date(`${schedule.startDate}T00:00:00`).toISOString(),
+  });
+
+  return scheduleId;
 }
 
 export function subscribeUserSchedules(
