@@ -121,6 +121,7 @@ export interface ActivePlan {
   planName: string;
   frequency: string;
   price: number;
+  paused?: boolean;
   startDate: string;
   nextDelivery?: string;
   quantity?: number;
@@ -385,6 +386,7 @@ export async function placeOrder(order: {
   payment: string;
   address: string;
   litres?: number;
+  orderType?: "cart" | "subscription";
 }): Promise<string | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -399,6 +401,7 @@ export async function placeOrder(order: {
       address: order.address,
       litres: order.litres ?? 0,
       status: "pending",
+      order_type: order.orderType ?? "cart",
     })
     .select("id")
     .single();
@@ -427,6 +430,7 @@ function mapOrder(row: Record<string, unknown>) {
   return {
     ...row,
     userId: row.user_id,
+    orderType: (row.order_type as string) ?? "cart",
     placedAt: row.placed_at ? { seconds: new Date(row.placed_at as string).getTime() / 1000 } : null,
     deliveredAt: row.delivered_at,
   };
@@ -535,6 +539,27 @@ export async function createSchedule(schedule: {
     .single();
   if (error) return null;
   return (data as { id: string } | null)?.id ?? null;
+}
+
+export function subscribeUserSchedules(
+  uid: string,
+  callback: (schedules: unknown[]) => void,
+): () => void {
+  if (!supabase) { callback([]); return () => {}; }
+  const fetch = async () => {
+    const { data } = await supabase!
+      .from("schedules")
+      .select("*")
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false });
+    callback(data ?? []);
+  };
+  fetch();
+  const ch = supabase
+    .channel(`schedules-${uid}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "schedules", filter: `user_id=eq.${uid}` }, fetch)
+    .subscribe();
+  return () => { supabase!.removeChannel(ch); };
 }
 
 // ─── Water Log ────────────────────────────────────────────────────────────────

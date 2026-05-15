@@ -152,6 +152,7 @@ function CheckoutPage() {
         payment: paymentMethod,
         address: fullAddress,
         litres: +totalLitres.toFixed(2),
+        orderType: "cart",
       });
       if (!orderId) throw new Error("Order could not be placed. Please try again.");
       if (coupon?.valid) await incrementCouponUsage(coupon.code);

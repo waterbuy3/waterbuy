@@ -43,6 +43,8 @@ import {
   deleteUserAddress,
   setDefaultAddress,
   subscribeUserOrders,
+  subscribeUserSchedules,
+  setUserActivePlan,
   sendSupportMessage,
   subscribeUserSupportMessages,
   subscribeNotifications,
@@ -102,6 +104,20 @@ interface OrderRecord {
   total: number;
   payment?: string;
   address?: string;
+  orderType: "cart" | "subscription" | "schedule";
+}
+
+interface ScheduleRecord {
+  id: string;
+  productName: string;
+  quantity: number;
+  frequency: string;
+  startDate: string;
+  timeSlot: string;
+  address: string;
+  total: number;
+  status: string;
+  createdAt: string;
 }
 
 const ORDER_STEPS = [
@@ -141,8 +157,12 @@ function ProfilePage() {
 
   const [activeSheet, setActiveSheet] = useState<SheetId>(null);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderTab, setOrderTab] = useState<"cart" | "subscription" | "schedule">("cart");
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+  const [planAction, setPlanAction] = useState<"pause" | "cancel" | null>(null);
+  const [planActing, setPlanActing] = useState(false);
 
   /* Payment methods as local state so delete works */
   const [payments, setPayments] = useState([
@@ -207,7 +227,7 @@ function ProfilePage() {
   useEffect(() => {
     if (!profile?.uid) return;
     setOrdersLoading(true);
-    const unsub = subscribeUserOrders(profile.uid, (docs) => {
+    const unsubOrders = subscribeUserOrders(profile.uid, (docs) => {
       const mapped = (docs as Record<string, unknown>[]).map((d) => ({
         id: String(d.id ?? ""),
         date: safeParseDate(d.placedAt),
@@ -216,13 +236,28 @@ function ProfilePage() {
         total: Number(d.total ?? 0),
         payment: String(d.payment ?? ""),
         address: String(d.address ?? ""),
+        orderType: (d.orderType as "cart" | "subscription") ?? "cart",
       }));
       setOrders(mapped);
       setOrdersLoading(false);
-      // keep selectedOrder in sync with live status updates
       setSelectedOrder((prev) => prev ? (mapped.find((o) => o.id === prev.id) ?? prev) : null);
     });
-    return unsub;
+    const unsubSchedules = subscribeUserSchedules(profile.uid, (docs) => {
+      const mapped = (docs as Record<string, unknown>[]).map((d) => ({
+        id: String(d.id ?? ""),
+        productName: String(d.product_name ?? ""),
+        quantity: Number(d.quantity ?? 1),
+        frequency: String(d.frequency ?? ""),
+        startDate: String(d.start_date ?? ""),
+        timeSlot: String(d.time_slot ?? ""),
+        address: String(d.address ?? ""),
+        total: Number(d.total ?? 0),
+        status: String(d.status ?? "active"),
+        createdAt: String(d.created_at ?? ""),
+      }));
+      setSchedules(mapped);
+    });
+    return () => { unsubOrders(); unsubSchedules(); };
   }, [profile?.uid]);
 
   const userStats = [
@@ -372,32 +407,68 @@ function ProfilePage() {
 
       {/* Active Subscription */}
       <div className="mx-4 mt-4">
-        <Link to="/subscriptions">
-          {profile?.activePlan ? (
-            <div className="bg-gradient-to-r from-primary to-water rounded-2xl p-4 flex items-center gap-3 shadow-water relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
+        {profile?.activePlan ? (
+          <div className={`rounded-2xl p-4 shadow-water relative overflow-hidden ${profile.activePlan.paused ? "bg-gradient-to-r from-slate-500 to-slate-600" : "bg-gradient-to-r from-primary to-water"}`}>
+            <div className="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
+            <div className="flex items-center gap-3 z-10 relative">
               <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                 <Repeat className="h-6 w-6 text-white" />
               </div>
-              <div className="flex-1 z-10">
-                <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">Active Plan</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold text-white/70 uppercase tracking-wider">
+                    {profile.activePlan.paused ? "Plan Paused" : "Active Plan"}
+                  </span>
+                  {profile.activePlan.paused && (
+                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-white/20 text-white">PAUSED</span>
+                  )}
+                </div>
                 <h3 className="text-sm font-extrabold text-white leading-tight">
                   {profile.activePlan.planName}
-                  {profile.activePlan.quantity ? ` · ${profile.activePlan.quantity}× cans` : ""}
                 </h3>
                 <p className="text-[11px] text-white/75 flex items-center gap-1 mt-0.5">
                   <CalendarDays className="h-3 w-3" />
-                  {profile.activePlan.nextDelivery
-                    ? `Next: ${profile.activePlan.nextDelivery}`
-                    : profile.activePlan.frequency}
+                  {profile.activePlan.frequency}
                 </p>
               </div>
-              <div className="z-10 text-right">
+              <div className="text-right">
                 <span className="text-base font-extrabold text-white">₹{profile.activePlan.price}</span>
                 <p className="text-[10px] text-white/70">/month</p>
               </div>
             </div>
-          ) : (
+            {/* Pause / Resume / Cancel */}
+            <div className="flex gap-2 mt-3 z-10 relative">
+              <button
+                disabled={planActing}
+                onClick={async () => {
+                  if (!profile?.uid || !profile.activePlan) return;
+                  setPlanActing(true);
+                  await setUserActivePlan(profile.uid, {
+                    ...profile.activePlan,
+                    paused: !profile.activePlan.paused,
+                  }).catch(() => {});
+                  setPlanActing(false);
+                }}
+                className="flex-1 py-2 rounded-xl text-xs font-extrabold bg-white/20 text-white hover:bg-white/30 transition-colors disabled:opacity-60"
+              >
+                {profile.activePlan.paused ? "▶ Resume" : "⏸ Pause"}
+              </button>
+              <button
+                disabled={planActing}
+                onClick={() => setPlanAction("cancel")}
+                className="flex-1 py-2 rounded-xl text-xs font-extrabold bg-white/10 text-white/80 hover:bg-red-500/40 hover:text-white transition-colors disabled:opacity-60"
+              >
+                ✕ Cancel Plan
+              </button>
+              <Link to="/subscriptions" className="flex-1">
+                <button className="w-full py-2 rounded-xl text-xs font-extrabold bg-white/20 text-white hover:bg-white/30 transition-colors">
+                  🔄 Change
+                </button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <Link to="/subscriptions">
             <div className="bg-card border border-border/50 rounded-2xl p-4 flex items-center gap-3 shadow-sm relative overflow-hidden">
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                 <Repeat className="h-6 w-6 text-primary" />
@@ -409,9 +480,39 @@ function ProfilePage() {
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
             </div>
-          )}
-        </Link>
+          </Link>
+        )}
       </div>
+
+      {/* Cancel Plan Confirmation Dialog */}
+      {planAction === "cancel" && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm px-4 pb-8">
+          <div className="w-full max-w-sm bg-background rounded-3xl p-6 shadow-xl">
+            <h3 className="text-base font-extrabold text-foreground mb-1">Cancel Subscription?</h3>
+            <p className="text-sm text-muted-foreground mb-5">
+              Your plan will be cancelled immediately. You can always subscribe again anytime.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 rounded-2xl" onClick={() => setPlanAction(null)}>
+                Keep Plan
+              </Button>
+              <Button
+                disabled={planActing}
+                className="flex-1 rounded-2xl bg-destructive hover:bg-destructive/90 text-white border-0"
+                onClick={async () => {
+                  if (!profile?.uid) return;
+                  setPlanActing(true);
+                  await setUserActivePlan(profile.uid, null).catch(() => {});
+                  setPlanActing(false);
+                  setPlanAction(null);
+                }}
+              >
+                {planActing ? "Cancelling…" : "Yes, Cancel"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Referral Banner */}
       {referralCode && (
@@ -501,8 +602,8 @@ function ProfilePage() {
 
       {/* My Orders */}
       <Sheet open={activeSheet === "orders"} onOpenChange={(o) => { if (!o) { setActiveSheet(null); setSelectedOrder(null); } }}>
-        <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] overflow-y-auto pb-10">
-          <SheetHeader className="mb-4">
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] flex flex-col pb-0">
+          <SheetHeader className="mb-3 shrink-0">
             <SheetTitle className="flex items-center gap-2">
               {selectedOrder ? (
                 <button onClick={() => setSelectedOrder(null)} className="flex items-center gap-2 text-sm font-bold text-foreground">
@@ -514,125 +615,211 @@ function ProfilePage() {
             </SheetTitle>
           </SheetHeader>
 
-          {/* Order detail with status timeline */}
-          {selectedOrder ? (
-            <div className="space-y-5">
-              {/* Status badge */}
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold capitalize ${statusColor[selectedOrder.status] ?? "text-slate-600 bg-slate-100"}`}>
-                {selectedOrder.status === "cancelled" ? "❌" : ORDER_STEPS.find(s => s.key === selectedOrder.status)?.icon ?? "📦"}
-                {" "}{selectedOrder.status.replace("_", " ")}
-              </div>
-
-              {/* Progress timeline */}
-              {selectedOrder.status !== "cancelled" && (
-                <div className="relative">
-                  <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border/60" />
-                  <div className="space-y-4">
-                    {ORDER_STEPS.map((step, i) => {
-                      const currentIdx = ORDER_STEPS.findIndex(s => s.key === selectedOrder.status);
-                      const done = i <= currentIdx;
-                      const active = i === currentIdx;
-                      return (
-                        <div key={step.key} className="flex items-start gap-4 relative">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 text-sm transition-all ${
-                            done ? "bg-primary text-white shadow-md" : "bg-muted text-muted-foreground border-2 border-border"
-                          } ${active ? "ring-2 ring-primary/30 ring-offset-2" : ""}`}>
-                            {done ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs">{i + 1}</span>}
-                          </div>
-                          <div className="pt-1">
-                            <p className={`text-sm font-bold ${done ? "text-foreground" : "text-muted-foreground"}`}>
-                              {step.label}
-                            </p>
-                            {active && (
-                              <p className="text-[11px] text-primary font-medium mt-0.5">Current status</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {selectedOrder.status === "cancelled" && (
-                <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-medium">
-                  This order was cancelled. Contact support if you need help.
-                </div>
-              )}
-
-              {/* Order details */}
-              <div className="bg-muted/40 rounded-2xl p-4 space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Items</span>
-                  <span className="font-semibold text-right max-w-[60%]">{selectedOrder.items}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-extrabold text-primary">₹{selectedOrder.total}</span>
-                </div>
-                {selectedOrder.payment && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Payment</span>
-                    <span className="font-semibold capitalize">{selectedOrder.payment === "cod" ? "Cash on Delivery" : selectedOrder.payment.toUpperCase()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Placed</span>
-                  <span className="font-semibold">{selectedOrder.date}</span>
-                </div>
-                {selectedOrder.address && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground shrink-0">Address</span>
-                    <span className="font-semibold text-right">{selectedOrder.address}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Orders list */
-            <div className="space-y-3">
-              {ordersLoading && (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-20 rounded-2xl shimmer" />
-                  ))}
-                </div>
-              )}
-              {!ordersLoading && orders.length === 0 && (
-                <div className="text-center py-10">
-                  <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-muted-foreground">No orders yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Your placed orders will appear here.</p>
-                </div>
-              )}
-              {orders.map((order) => (
+          {/* 3 tabs — only shown on list view */}
+          {!selectedOrder && (
+            <div className="flex gap-1 p-1 bg-muted/50 rounded-2xl mb-3 shrink-0">
+              {([
+                { key: "cart",         label: "🛒 Cart",         count: orders.filter(o => o.orderType === "cart").length },
+                { key: "subscription", label: "🔄 Subscription", count: orders.filter(o => o.orderType === "subscription").length },
+                { key: "schedule",     label: "📅 Scheduled",    count: schedules.length },
+              ] as const).map((t) => (
                 <button
-                  key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className="w-full bg-muted/40 rounded-2xl p-4 flex items-center gap-3 text-left hover:bg-muted/60 active:bg-muted/80 transition-colors"
+                  key={t.key}
+                  onClick={() => setOrderTab(t.key)}
+                  className={`flex-1 py-2 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-center gap-1 ${
+                    orderTab === t.key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Droplets className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-extrabold text-foreground">
-                        #{order.id.slice(0, 8).toUpperCase()}
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColor[order.status] ?? "text-slate-600 bg-slate-100"}`}>
-                        {order.status.replace("_", " ")}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
-                    <p className="text-[10px] text-muted-foreground">{order.date}</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-sm font-extrabold text-foreground">₹{order.total}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
+                  {t.label}
+                  {t.count > 0 && (
+                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${orderTab === t.key ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                      {t.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
           )}
+
+          <div className="flex-1 overflow-y-auto pb-6">
+            {/* ── Order detail ── */}
+            {selectedOrder ? (
+              <div className="space-y-5">
+                {/* Type badge */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                    selectedOrder.orderType === "subscription"
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-sky-100 text-sky-700"
+                  }`}>
+                    {selectedOrder.orderType === "subscription" ? "🔄 Subscription" : "🛒 Cart Order"}
+                  </span>
+                  <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full capitalize ${statusColor[selectedOrder.status] ?? "text-slate-600 bg-slate-100"}`}>
+                    {selectedOrder.status === "cancelled" ? "❌ " : ORDER_STEPS.find(s => s.key === selectedOrder.status)?.icon + " "}
+                    {selectedOrder.status.replace("_", " ")}
+                  </span>
+                </div>
+
+                {selectedOrder.status !== "cancelled" && (
+                  <div className="relative">
+                    <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border/60" />
+                    <div className="space-y-4">
+                      {ORDER_STEPS.map((step, i) => {
+                        const currentIdx = ORDER_STEPS.findIndex(s => s.key === selectedOrder.status);
+                        const done = i <= currentIdx;
+                        const active = i === currentIdx;
+                        return (
+                          <div key={step.key} className="flex items-start gap-4 relative">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 text-sm transition-all ${
+                              done ? "bg-primary text-white shadow-md" : "bg-muted text-muted-foreground border-2 border-border"
+                            } ${active ? "ring-2 ring-primary/30 ring-offset-2" : ""}`}>
+                              {done ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs">{i + 1}</span>}
+                            </div>
+                            <div className="pt-1">
+                              <p className={`text-sm font-bold ${done ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
+                              {active && <p className="text-[11px] text-primary font-medium mt-0.5">Current status</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {selectedOrder.status === "cancelled" && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-medium">
+                    This order was cancelled. Contact support if you need help.
+                  </div>
+                )}
+
+                <div className="bg-muted/40 rounded-2xl p-4 space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Items</span>
+                    <span className="font-semibold text-right max-w-[60%]">{selectedOrder.items}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-extrabold text-primary">₹{selectedOrder.total}</span>
+                  </div>
+                  {selectedOrder.payment && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payment</span>
+                      <span className="font-semibold capitalize">{selectedOrder.payment === "cod" ? "Cash on Delivery" : selectedOrder.payment.toUpperCase()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Placed</span>
+                    <span className="font-semibold">{selectedOrder.date}</span>
+                  </div>
+                  {selectedOrder.address && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground shrink-0">Address</span>
+                      <span className="font-semibold text-right">{selectedOrder.address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* ── Order lists by tab ── */
+              <div className="space-y-3">
+                {ordersLoading && [1,2,3].map((i) => <div key={i} className="h-20 rounded-2xl shimmer" />)}
+
+                {/* Cart tab */}
+                {!ordersLoading && orderTab === "cart" && (() => {
+                  const cartOrders = orders.filter(o => o.orderType === "cart");
+                  return cartOrders.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-muted-foreground">No cart orders yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Shop products and checkout to place orders.</p>
+                    </div>
+                  ) : cartOrders.map((order) => (
+                    <button key={order.id} onClick={() => setSelectedOrder(order)}
+                      className="w-full bg-muted/40 rounded-2xl p-4 flex items-center gap-3 text-left hover:bg-muted/60 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0 text-lg">🛒</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-extrabold">#{order.id.slice(0,8).toUpperCase()}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColor[order.status] ?? "text-slate-600 bg-slate-100"}`}>
+                            {order.status.replace("_"," ")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
+                        <p className="text-[10px] text-muted-foreground">{order.date}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-sm font-extrabold">₹{order.total}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </button>
+                  ));
+                })()}
+
+                {/* Subscription tab */}
+                {!ordersLoading && orderTab === "subscription" && (() => {
+                  const subOrders = orders.filter(o => o.orderType === "subscription");
+                  return subOrders.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Repeat className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-muted-foreground">No subscription orders</p>
+                      <p className="text-xs text-muted-foreground mt-1">Subscribe to a plan to see orders here.</p>
+                    </div>
+                  ) : subOrders.map((order) => (
+                    <button key={order.id} onClick={() => setSelectedOrder(order)}
+                      className="w-full bg-muted/40 rounded-2xl p-4 flex items-center gap-3 text-left hover:bg-muted/60 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 text-lg">🔄</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-extrabold">#{order.id.slice(0,8).toUpperCase()}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColor[order.status] ?? "text-slate-600 bg-slate-100"}`}>
+                            {order.status.replace("_"," ")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{order.items}</p>
+                        <p className="text-[10px] text-muted-foreground">{order.date}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-sm font-extrabold">₹{order.total}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </button>
+                  ));
+                })()}
+
+                {/* Scheduled tab */}
+                {!ordersLoading && orderTab === "schedule" && (() => {
+                  return schedules.length === 0 ? (
+                    <div className="text-center py-10">
+                      <CalendarDays className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-muted-foreground">No scheduled deliveries</p>
+                      <p className="text-xs text-muted-foreground mt-1">Use Schedule to set up recurring deliveries.</p>
+                    </div>
+                  ) : schedules.map((s) => (
+                    <div key={s.id} className="bg-muted/40 rounded-2xl p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center shrink-0 text-lg">📅</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <span className="text-xs font-extrabold">{s.productName}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                            s.status === "active" ? "text-emerald-700 bg-emerald-100" : "text-slate-500 bg-slate-100"
+                          }`}>{s.status}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Qty: {s.quantity} · {s.frequency}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          From {s.startDate}{s.timeSlot ? ` · ${s.timeSlot}` : ""}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{s.address}</p>
+                      </div>
+                      <span className="text-sm font-extrabold text-foreground shrink-0">₹{s.total}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 

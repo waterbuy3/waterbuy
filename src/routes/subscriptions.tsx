@@ -80,6 +80,7 @@ function SubscriptionsPage() {
           payment: "pending",
           address: profile.addresses?.[0]?.line1 || "TBD",
           litres: 0,
+          orderType: "subscription",
         });
       }
     } catch { /* non-fatal */ }
