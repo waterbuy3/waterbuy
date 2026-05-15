@@ -235,6 +235,7 @@ function mapProduct(row: Record<string, unknown>) {
     deliveryType: row.delivery_type ?? row.deliveryType ?? "All",
     reviewCount: row.review_count ?? row.reviewCount ?? 0,
     orderLimit: row.order_limit ?? row.orderLimit ?? undefined,
+    sortOrder: row.sort_order ?? row.sortOrder ?? undefined,
   };
 }
 
@@ -242,7 +243,7 @@ export function subscribeProducts(callback: (docs: unknown[]) => void): () => vo
   if (!supabase) { callback([]); return () => {}; }
 
   const fetch = async () => {
-    const { data } = await supabase!.from("products").select("*").eq("active", true);
+    const { data } = await supabase!.from("products").select("*").eq("active", true).order("sort_order", { ascending: true });
     callback((data ?? []).map((r) => mapProduct(r as Record<string, unknown>)));
   };
 
