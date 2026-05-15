@@ -13,7 +13,14 @@ export const isSupabaseConfigured =
   supabaseUrl !== "REPLACE_ME";
 
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        flowType: "implicit",       // localStorage-only — works in PWA standalone
+        persistSession: true,
+        detectSessionInUrl: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;
 
 // ─── Auth adapter ─────────────────────────────────────────────────────────────
