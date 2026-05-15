@@ -50,6 +50,7 @@ import {
   subscribeNotifications,
   markNotificationsRead,
   setUserSchedulesStatus,
+  cancelUserSubscriptionOrders,
   type UserAddress,
   type AppNotification,
 } from "@/lib/supabase";
@@ -560,6 +561,7 @@ function ProfilePage() {
                   await Promise.all([
                     setUserActivePlan(profile.uid, null).catch(() => {}),
                     setUserSchedulesStatus(profile.uid, "cancelled").catch(() => {}),
+                    cancelUserSubscriptionOrders(profile.uid).catch(() => {}),
                   ]);
                   setPlanActing(false);
                   setPlanAction(null);

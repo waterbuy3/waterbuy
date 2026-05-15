@@ -422,6 +422,17 @@ export async function placeOrder(order: {
   return (data as { id: string } | null)?.id ?? null;
 }
 
+// Cancel any open subscription orders so the vendor can no longer accept them.
+export async function cancelUserSubscriptionOrders(uid: string): Promise<void> {
+  if (!supabase) return;
+  await supabase
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("user_id", uid)
+    .eq("order_type", "subscription")
+    .in("status", ["pending", "confirmed"]);
+}
+
 export async function getUserOrders(uid: string): Promise<unknown[]> {
   if (!supabase) return [];
   const { data } = await supabase
