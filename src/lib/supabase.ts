@@ -80,7 +80,10 @@ export async function signUpWithEmail(
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: window.location.origin,
+    },
   });
   if (error) throw error;
   // session is null when Supabase requires email confirmation
@@ -231,6 +234,7 @@ function mapProduct(row: Record<string, unknown>) {
     imageUrl: row.image_url ?? row.imageUrl ?? "",
     deliveryType: row.delivery_type ?? row.deliveryType ?? "All",
     reviewCount: row.review_count ?? row.reviewCount ?? 0,
+    orderLimit: row.order_limit ?? row.orderLimit ?? undefined,
   };
 }
 

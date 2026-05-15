@@ -10,7 +10,7 @@ interface CartContextValue {
   cart: Record<string, number>;
   totalItems: number;
   totalPrice: number;
-  addToCart: (id: string) => void;
+  addToCart: (id: string, limit?: number) => void;
   removeFromCart: (id: string) => void;
   clearCart: () => void;
 }
@@ -49,7 +49,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = useCallback(
-    (id: string) => setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 })),
+    (id: string, limit?: number) => setCart((prev) => {
+      const current = prev[id] || 0;
+      if (limit !== undefined && current >= limit) return prev;
+      return { ...prev, [id]: current + 1 };
+    }),
     [],
   );
 

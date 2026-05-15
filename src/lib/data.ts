@@ -13,6 +13,7 @@ export interface Product {
   imageUrl: string;
   rating?: number;
   reviewCount?: number;
+  orderLimit?: number;
 }
 
 export interface Category {

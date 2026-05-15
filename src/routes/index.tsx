@@ -512,7 +512,7 @@ function HomePage() {
                     {qty === 0 ? (
                       <Button
                         size="icon"
-                        onClick={() => addToCart(product.id)}
+                        onClick={() => addToCart(product.id, product.orderLimit)}
                         className="h-7 w-7 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white shadow-none border border-primary/20 transition-all"
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -531,8 +531,9 @@ function HomePage() {
                         </span>
                         <button
                           aria-label={`Add one ${product.name}`}
-                          onClick={() => addToCart(product.id)}
-                          className="text-white text-sm font-bold px-1.5 py-0.5"
+                          onClick={() => addToCart(product.id, product.orderLimit)}
+                          disabled={product.orderLimit !== undefined && qty >= product.orderLimit}
+                          className="text-white text-sm font-bold px-1.5 py-0.5 disabled:opacity-40"
                         >
                           +
                         </button>
@@ -597,7 +598,7 @@ function HomePage() {
                     {qty === 0 ? (
                       <Button
                         size="sm"
-                        onClick={() => addToCart(p.id)}
+                        onClick={() => addToCart(p.id, p.orderLimit)}
                         className="rounded-xl h-7 text-xs bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 shadow-none font-bold"
                       >
                         Add
@@ -616,8 +617,9 @@ function HomePage() {
                         </span>
                         <button
                           aria-label={`Add one ${p.name}`}
-                          onClick={() => addToCart(p.id)}
-                          className="text-white text-sm font-bold px-1.5"
+                          onClick={() => addToCart(p.id, p.orderLimit)}
+                          disabled={p.orderLimit !== undefined && qty >= p.orderLimit}
+                          className="text-white text-sm font-bold px-1.5 disabled:opacity-40"
                         >
                           +
                         </button>

@@ -341,7 +341,7 @@ function ProductsPage() {
                   <div className="w-[80px]">
                     {qty === 0 ? (
                       <button
-                        onClick={() => addToCart(product.id)}
+                        onClick={() => addToCart(product.id, product.orderLimit)}
                         className="w-full py-2 rounded-xl border-2 border-primary/30 bg-primary/5 text-primary text-xs font-extrabold uppercase tracking-wide hover:bg-primary/10 active:scale-95 transition-all"
                       >
                         ADD
@@ -358,12 +358,16 @@ function ProductsPage() {
                         <span aria-label={`${qty} in cart`}>{qty}</span>
                         <button
                           aria-label={`Add one ${product.name}`}
-                          onClick={() => addToCart(product.id)}
-                          className="px-1 text-base leading-none"
+                          onClick={() => addToCart(product.id, product.orderLimit)}
+                          disabled={product.orderLimit !== undefined && qty >= product.orderLimit}
+                          className="px-1 text-base leading-none disabled:opacity-40"
                         >
                           +
                         </button>
                       </div>
+                    )}
+                    {product.orderLimit !== undefined && product.orderLimit > 0 && (
+                      <p className="text-[9px] text-muted-foreground text-center mt-0.5">Max {product.orderLimit}</p>
                     )}
                   </div>
                 </div>

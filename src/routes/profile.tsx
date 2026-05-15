@@ -138,6 +138,7 @@ const statusColor: Record<string, string> = {
   in_transit: "text-purple-600 bg-purple-50",
   delivered:  "text-emerald-600 bg-emerald-50",
   cancelled:  "text-red-500 bg-red-50",
+  rejected:   "text-rose-600 bg-rose-50",
 };
 
 function safeParseDate(ts: unknown): string {
@@ -718,12 +719,12 @@ function ProfilePage() {
                     {selectedOrder.orderType === "subscription" ? "🔄 Subscription" : "🛒 Cart Order"}
                   </span>
                   <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full capitalize ${statusColor[selectedOrder.status] ?? "text-slate-600 bg-slate-100"}`}>
-                    {selectedOrder.status === "cancelled" ? "❌ " : ORDER_STEPS.find(s => s.key === selectedOrder.status)?.icon + " "}
+                    {selectedOrder.status === "cancelled" ? "❌ " : selectedOrder.status === "rejected" ? "🚫 " : ORDER_STEPS.find(s => s.key === selectedOrder.status)?.icon + " "}
                     {selectedOrder.status.replace("_", " ")}
                   </span>
                 </div>
 
-                {selectedOrder.status !== "cancelled" && (
+                {selectedOrder.status !== "cancelled" && selectedOrder.status !== "rejected" && (
                   <div className="relative">
                     <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border/60" />
                     <div className="space-y-4">
@@ -746,6 +747,11 @@ function ProfilePage() {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+                {selectedOrder.status === "rejected" && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-600 font-medium">
+                    This order was rejected by the vendor. Please place a new order or contact support.
                   </div>
                 )}
                 {selectedOrder.status === "cancelled" && (
