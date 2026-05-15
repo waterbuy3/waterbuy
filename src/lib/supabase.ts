@@ -1,4 +1,4 @@
-// Supabase client — browser-only, gracefully no-ops when unconfigured.
+// Supabase client — gracefully no-ops when unconfigured.
 //
 // Schema migration (run once in Supabase SQL editor):
 // See bottom of this file for the CREATE TABLE statements.
@@ -9,7 +9,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 export const isSupabaseConfigured =
-  typeof window !== "undefined" &&
   !!supabaseUrl &&
   supabaseUrl !== "REPLACE_ME";
 
