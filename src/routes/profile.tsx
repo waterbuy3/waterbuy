@@ -58,6 +58,7 @@ import {
 export const Route = createFileRoute("/profile")({
   validateSearch: (search: Record<string, unknown>) => ({
     sheet: typeof search.sheet === "string" ? (search.sheet as string) : undefined,
+    tab: typeof search.tab === "string" ? (search.tab as string) : undefined,
   }),
   head: () => ({
     meta: [
@@ -169,11 +170,13 @@ function safeParseDate(ts: unknown): string {
 function ProfilePage() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const { sheet: sheetParam } = Route.useSearch();
+  const { sheet: sheetParam, tab: tabParam } = Route.useSearch();
 
   const [activeSheet, setActiveSheet] = useState<SheetId>(null);
+  const [orderTab, setOrderTab] = useState<"cart" | "subscription" | "schedule">("cart");
 
-  // Open sheet based on URL search param (e.g. ?sheet=notifications from header bell)
+  // Open sheet based on URL search param (e.g. ?sheet=orders&tab=schedule after
+  // placing an order, or ?sheet=notifications from the header bell).
   useEffect(() => {
     const valid: SheetId[] = [
       "orders",
@@ -187,14 +190,17 @@ function ProfilePage() {
     if (sheetParam && (valid as string[]).includes(sheetParam)) {
       setActiveSheet(sheetParam as SheetId);
     }
-  }, [sheetParam]);
-
-  // Clear `?sheet=` from URL when no sheet open so reopening works after deep link
-  useEffect(() => {
-    if (activeSheet === null && sheetParam) {
-      navigate({ to: "/profile", search: { sheet: undefined }, replace: true });
+    if (tabParam && ["cart", "subscription", "schedule"].includes(tabParam)) {
+      setOrderTab(tabParam as "cart" | "subscription" | "schedule");
     }
-  }, [activeSheet, sheetParam, navigate]);
+  }, [sheetParam, tabParam]);
+
+  // Clear `?sheet=`/`?tab=` from URL when no sheet open so reopening works after deep link
+  useEffect(() => {
+    if (activeSheet === null && (sheetParam || tabParam)) {
+      navigate({ to: "/profile", search: { sheet: undefined, tab: undefined }, replace: true });
+    }
+  }, [activeSheet, sheetParam, tabParam, navigate]);
 
   // When notifications sheet is open, mark all as read
   useEffect(() => {
@@ -205,7 +211,6 @@ function ProfilePage() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [orderTab, setOrderTab] = useState<"cart" | "subscription" | "schedule">("cart");
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [planAction, setPlanAction] = useState<"pause" | "cancel" | null>(null);
   const [planActing, setPlanActing] = useState(false);
@@ -308,10 +313,10 @@ function ProfilePage() {
   }, [profile?.uid]);
 
   const userStats = [
-    { icon: Package, value: String(profile?.ordersCount ?? 0), label: "Orders" },
-    { icon: Droplets, value: `${profile?.litresDelivered ?? 0}L`, label: "Delivered" },
-    { icon: Flame, value: String(profile?.streak ?? 0), label: "Streak" },
-    { icon: Star, value: "4.9", label: "Rating" },
+    { icon: Package, value: String(profile?.ordersCount ?? 0), label: "Orders", zero: !profile?.ordersCount },
+    { icon: Droplets, value: `${profile?.litresDelivered ?? 0}L`, label: "Delivered", zero: !profile?.litresDelivered },
+    { icon: Flame, value: String(profile?.streak ?? 0), label: "Streak", zero: !profile?.streak },
+    { icon: Star, value: "4.9", label: "Rating", zero: false },
   ];
 
   const settingsGroups = [
@@ -442,8 +447,8 @@ function ProfilePage() {
         <div className="grid grid-cols-4 divide-x divide-border/40">
           {userStats.map((s, i) => (
             <div key={i} className="flex flex-col items-center py-4 gap-0.5">
-              <s.icon className="h-4 w-4 text-primary mb-0.5" />
-              <span className="text-base font-extrabold text-foreground">{s.value}</span>
+              <s.icon className={`h-4 w-4 mb-0.5 ${s.zero ? "text-muted-foreground/40" : "text-primary"}`} />
+              <span className={`text-base font-extrabold ${s.zero ? "text-muted-foreground/50" : "text-foreground"}`}>{s.value}</span>
               <span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wide text-center">
                 {s.label}
               </span>

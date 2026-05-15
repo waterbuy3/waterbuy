@@ -3,13 +3,12 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AddressPicker } from "@/components/AddressPicker";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronLeft,
   MapPin,
   Smartphone,
   Package,
-  CheckCircle2,
   Plus,
   Minus,
   Truck,
@@ -18,9 +17,12 @@ import {
   PenLine,
   X,
   BadgePercent,
+  User,
+  Phone,
 } from "lucide-react";
 import { products as FALLBACK_PRODUCTS, type Product } from "@/lib/data";
 import { subscribeProducts, subscribeDeliverySettings, placeOrder, validateCoupon, incrementCouponUsage, type UserAddress, type DeliverySettings, type CouponResult } from "@/lib/supabase";
+import { OrderPlaced } from "@/components/OrderPlaced";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -37,7 +39,10 @@ function CheckoutPage() {
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
   const [landmark, setLandmark] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [placed, setPlaced] = useState(false);
+  const [placedDetails, setPlacedDetails] = useState<{ label: string; value: string }[]>([]);
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
@@ -46,7 +51,6 @@ function CheckoutPage() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
-  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const savedAddresses: UserAddress[] = profile?.addresses ?? [];
 
@@ -63,12 +67,13 @@ function CheckoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.uid, savedAddresses.length]);
 
-  /* Cleanup redirect timer on unmount */
+  /* Prefill contact details from the signed-in profile (without clobbering edits) */
   useEffect(() => {
-    return () => {
-      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
-    };
-  }, []);
+    const pn = profile?.name;
+    const pp = profile?.phone;
+    if (pn) setName((n) => n || pn);
+    if (pp) setPhone((p) => p || pp);
+  }, [profile?.uid, profile?.name, profile?.phone]);
 
   useEffect(() => {
     const unsubP = subscribeProducts((docs) => {
@@ -136,8 +141,13 @@ function CheckoutPage() {
     return 0;
   };
 
+  const phoneDigits = phone.replace(/\D/g, "");
+  const contactValid = name.trim().length >= 2 && phoneDigits.length >= 10;
+  const addressValid = address.trim().length > 0 && pincode.trim().length === 6;
+  const canPlace = contactValid && addressValid;
+
   const handlePlaceOrder = async () => {
-    if (!address.trim() || !pincode.trim()) return;
+    if (!canPlace) return;
     setPlacing(true);
     setPlaceError(null);
     const itemsSummary = cartItems.map((item) => `${item.name} × ${item.qty}`).join(", ");
@@ -148,8 +158,8 @@ function CheckoutPage() {
     try {
       const orderId = await placeOrder({
         userId: profile?.uid ?? "guest",
-        customer: profile?.name || "Guest",
-        phone: profile?.phone || "",
+        customer: name.trim(),
+        phone: phoneDigits,
         items: itemsSummary,
         total: orderTotal,
         payment: paymentMethod,
@@ -159,9 +169,14 @@ function CheckoutPage() {
       });
       if (!orderId) throw new Error("Order could not be placed. Please try again.");
       if (coupon?.valid) await incrementCouponUsage(coupon.code);
+      setPlacedDetails([
+        { label: "Items",      value: itemsSummary },
+        { label: "Amount",     value: `₹${orderTotal.toFixed(0)}` },
+        { label: "Payment",    value: paymentMethod === "cod" ? "Cash on Delivery" : "UPI / Online" },
+        { label: "Deliver to", value: fullAddress },
+      ]);
       clearCart();
       setPlaced(true);
-      redirectTimerRef.current = setTimeout(() => navigate({ to: "/" }), 3200);
     } catch (err) {
       setPlaceError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -195,25 +210,17 @@ function CheckoutPage() {
   /* ── Success ── */
   if (placed) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-5 px-8 text-center animate-slide-up-fade">
-        <div className="w-24 h-24 rounded-full bg-success/15 flex items-center justify-center">
-          <CheckCircle2 className="h-14 w-14 text-success" strokeWidth={1.5} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-extrabold">Order Placed!</h2>
-          <p className="text-muted-foreground text-sm mt-1">Your water is on its way 💧</p>
-        </div>
-        <div className="bg-primary/8 rounded-2xl p-4 w-full max-w-xs text-left space-y-1">
-          <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
-            Estimated Delivery
-          </p>
-          <p className="text-base font-extrabold">
-            {deliverySettings?.etaMins ? `Within ${deliverySettings.etaMins} mins` : "Today"}
-          </p>
-          <p className="text-xs text-muted-foreground">You'll receive a call before delivery</p>
-        </div>
-        <p className="text-xs text-muted-foreground animate-pulse">Redirecting to home…</p>
-      </div>
+      <OrderPlaced
+        tab="cart"
+        title="Order Placed!"
+        subtitle="Your water is on its way 💧"
+        details={placedDetails}
+        note={
+          deliverySettings?.etaMins
+            ? `Estimated delivery within ${deliverySettings.etaMins} mins. You'll get a call before delivery.`
+            : "We'll deliver today. You'll get a call before delivery."
+        }
+      />
     );
   }
 
@@ -291,6 +298,44 @@ function CheckoutPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Contact Details */}
+        <div className="bg-background rounded-2xl border border-border/40 shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <User className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-extrabold">Contact Details</h2>
+          </div>
+          <div className="space-y-2">
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                className="w-full bg-muted/50 rounded-xl border border-border/50 pl-9 pr-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+                placeholder="Full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                aria-label="Full name"
+              />
+            </div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                className="w-full bg-muted/50 rounded-xl border border-border/50 pl-9 pr-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+                placeholder="10-digit mobile number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, "").slice(0, 14))}
+                inputMode="tel"
+                autoComplete="tel"
+                aria-label="Phone number"
+              />
+            </div>
+            {phone.trim().length > 0 && phoneDigits.length < 10 && (
+              <p className="text-[11px] text-destructive font-semibold">
+                Enter a valid 10-digit mobile number
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Delivery Address */}
@@ -508,9 +553,11 @@ function CheckoutPage() {
 
       {/* Sticky place-order CTA */}
       <div className="fixed bottom-[84px] left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-3 bg-gradient-to-t from-background via-background/90 to-transparent pt-6 z-20">
-        {(!address.trim() || !pincode.trim()) && (
+        {!canPlace && (
           <p className="text-center text-xs text-destructive font-semibold mb-2">
-            Please select or enter a delivery address and pincode
+            {!contactValid
+              ? "Add your name and a valid 10-digit phone number"
+              : "Select or enter a delivery address with a 6-digit pincode"}
           </p>
         )}
         {placeError && (
@@ -520,7 +567,7 @@ function CheckoutPage() {
         )}
         <Button
           onClick={handlePlaceOrder}
-          disabled={placing || !address.trim() || !pincode.trim()}
+          disabled={placing || !canPlace}
           className="w-full h-14 rounded-2xl text-base font-extrabold shadow-water bg-gradient-to-r from-primary to-water disabled:opacity-50"
         >
           {placing ? (

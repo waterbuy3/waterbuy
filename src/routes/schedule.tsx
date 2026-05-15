@@ -17,8 +17,9 @@ import {
   type DeliverySettings,
 } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { MapPin, Package, CheckCircle2, Droplets, CalendarDays, PenLine } from "lucide-react";
+import { MapPin, Package, CheckCircle2, Droplets, CalendarDays, PenLine, User, Phone } from "lucide-react";
 import { CalendarScheduler } from "@/components/CalendarScheduler";
+import { OrderPlaced } from "@/components/OrderPlaced";
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({
@@ -66,6 +67,10 @@ function SchedulePage() {
   const [manualMode, setManualMode] = useState(false);
   const [address, setAddress] = useState("");
 
+  /* Contact state */
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
   /* Pre-select default address */
   useEffect(() => {
     if (savedAddresses.length > 0 && !selectedAddressId) {
@@ -77,6 +82,17 @@ function SchedulePage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.uid, savedAddresses.length]);
+
+  /* Prefill contact details from the signed-in profile */
+  useEffect(() => {
+    const pn = profile?.name ?? user?.displayName ?? "";
+    const pp = profile?.phone ?? user?.phoneNumber ?? "";
+    if (pn) setName((n) => n || pn);
+    if (pp) setPhone((p) => p || pp);
+  }, [profile?.uid, profile?.name, profile?.phone, user?.uid, user?.displayName, user?.phoneNumber]);
+
+  const phoneDigits = phone.replace(/\D/g, "");
+  const contactOk = name.trim().length >= 2 && phoneDigits.length >= 10;
 
   const handleSelectAddress = (addr: UserAddress) => {
     setSelectedAddressId(addr.id);
@@ -111,14 +127,14 @@ function SchedulePage() {
   const selectedProductData = products.find((p) => p.id === selectedProduct);
 
   const handleConfirm = async () => {
-    if (!address.trim() || !selectedProductData || !scheduleData.date) return;
+    if (!address.trim() || !contactOk || !selectedProductData || !scheduleData.date) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
       await createSchedule({
         userId: profile?.uid ?? user?.uid ?? "guest",
-        customer: profile?.name || user?.displayName || "Guest",
-        phone: profile?.phone || user?.phoneNumber || "",
+        customer: name.trim(),
+        phone: phoneDigits,
         productId: selectedProductData.id,
         productName: selectedProductData.name,
         quantity,
@@ -138,69 +154,19 @@ function SchedulePage() {
 
   if (submitted) {
     return (
-      <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-success/10 border-4 border-success/20">
-          <CheckCircle2 className="h-12 w-12 text-success" />
-        </div>
-        <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
-          Delivery Scheduled!
-        </h1>
-        <p className="mt-3 text-muted-foreground font-medium">Your water is on its way.</p>
-
-        <div className="mt-8 rounded-3xl glass-card p-6 text-left shadow-water border-primary/20">
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border/50">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Droplets className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-bold text-foreground">{selectedProductData?.name}</h3>
-              <p className="text-xs text-muted-foreground">
-                {selectedProductData?.size} × {quantity}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Frequency</span>
-              <span className="font-bold text-primary">{scheduleData.frequency}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Starting On</span>
-              <span className="font-medium text-foreground">
-                {scheduleData.date?.toLocaleDateString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Time Slot</span>
-              <span className="font-medium text-foreground">{scheduleData.slot}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Address</span>
-              <span className="font-medium text-foreground text-right max-w-[60%] truncate">{address}</span>
-            </div>
-            <div className="mt-4 pt-4 border-t border-border/50 flex justify-between">
-              <span className="font-bold text-foreground">Total per delivery</span>
-              <span className="font-extrabold text-primary">
-                ₹{((selectedProductData?.price || 0) * quantity).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <Button
-          variant="hero"
-          size="lg"
-          className="mt-8 w-full rounded-full h-14 text-base shadow-water"
-          onClick={() => {
-            setSubmitted(false);
-            setStep(1);
-            setSelectedProduct(null);
-          }}
-        >
-          Done
-        </Button>
-      </div>
+      <OrderPlaced
+        tab="schedule"
+        title="Delivery Scheduled!"
+        subtitle="Your recurring delivery is all set 💧"
+        details={[
+          { label: "Product",      value: `${selectedProductData?.name ?? ""} × ${quantity}` },
+          { label: "Frequency",    value: scheduleData.frequency },
+          { label: "Starts on",    value: scheduleData.date?.toLocaleDateString() ?? "" },
+          { label: "Time slot",    value: scheduleData.slot },
+          { label: "Per delivery", value: `₹${((selectedProductData?.price || 0) * quantity).toFixed(0)}` },
+        ]}
+        note="A vendor will pick up your schedule and deliver on time. Track it anytime under My Orders › Scheduled."
+      />
     );
   }
 
@@ -371,6 +337,40 @@ function SchedulePage() {
             <h2 className="text-xl font-bold mb-2 text-foreground">Where to deliver?</h2>
 
             <div className="space-y-5">
+              {/* Contact details */}
+              <div>
+                <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
+                  <User className="h-4 w-4 text-primary" /> Contact Details
+                </label>
+                <div className="space-y-3">
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Full name"
+                    autoComplete="name"
+                    aria-label="Full name"
+                    className="w-full rounded-2xl border-2 border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-0"
+                  />
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, "").slice(0, 14))}
+                      placeholder="10-digit mobile number"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      aria-label="Phone number"
+                      className="w-full rounded-2xl border-2 border-border/50 bg-background/50 pl-11 pr-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-0"
+                    />
+                  </div>
+                  {phone.trim().length > 0 && phoneDigits.length < 10 && (
+                    <p className="text-xs text-destructive font-semibold">
+                      Enter a valid 10-digit mobile number
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -445,7 +445,7 @@ function SchedulePage() {
                 <Button
                   variant="hero"
                   className="flex-1 rounded-xl h-14 text-base shadow-water"
-                  disabled={!address.trim() || submitting}
+                  disabled={!address.trim() || !contactOk || submitting}
                   onClick={handleConfirm}
                 >
                   {submitting ? (

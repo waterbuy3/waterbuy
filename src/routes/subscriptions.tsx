@@ -1,8 +1,10 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
 import { subscribeSubscriptionPlans, setUserActivePlan, placeOrder } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { OrderPlaced } from "@/components/OrderPlaced";
 import {
   Check,
   Droplets,
@@ -11,6 +13,9 @@ import {
   Shield,
   Star,
   ArrowRight,
+  User,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -50,46 +55,40 @@ const planColors: Record<string, { gradient: string; accent: string; icon: strin
   },
 };
 
+const DEFAULT_COLOR = { gradient: "from-primary to-water", accent: "text-primary bg-primary/10", icon: "💧" };
+
 function SubscriptionsPage() {
   const { profile } = useAuth();
-  const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(FALLBACK_PLANS);
   const [loading, setLoading] = useState(true);
-  const [subscribing, setSubscribing] = useState<string | null>(null);
 
-  const handleSubscribe = async (plan: SubscriptionPlan) => {
-    if (subscribing) return;
-    setSubscribing(plan.id);
-    try {
-      if (profile?.uid) {
-        await setUserActivePlan(profile.uid, {
-          planId: plan.id,
-          planName: plan.name,
-          frequency: plan.deliveryFrequency,
-          price: plan.pricePerMonth,
-          startDate: new Date().toISOString().slice(0, 10),
-        });
-        // Create a subscription order record so admin can see it
-        await placeOrder({
-          userId: profile.uid,
-          customer: profile.name || "Guest",
-          phone: profile.phone || "",
-          items: `${plan.name} — ${plan.deliveryFrequency}`,
-          total: plan.pricePerMonth,
-          payment: "pending",
-          address: profile.addresses?.[0]?.line1 || "TBD",
-          litres: 0,
-          orderType: "subscription",
-        });
-      }
-    } catch { /* non-fatal */ }
-    finally { setSubscribing(null); }
-    navigate({ to: "/schedule" });
-  };
+  /* Confirm-subscription sheet */
+  const [confirmPlan, setConfirmPlan] = useState<SubscriptionPlan | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  /* Order-placed state */
+  const [placed, setPlaced] = useState(false);
+  const [placedDetails, setPlacedDetails] = useState<{ label: string; value: string }[]>([]);
+
+  /* Prefill contact + address from the signed-in profile */
+  useEffect(() => {
+    const pn = profile?.name ?? "";
+    const pp = profile?.phone ?? "";
+    if (pn) setName((n) => n || pn);
+    if (pp) setPhone((p) => p || pp);
+    const def = profile?.addresses?.find((a) => a.isDefault) ?? profile?.addresses?.[0];
+    if (def) {
+      setAddress((a) => a || [def.line1, def.pincode, def.landmark].filter(Boolean).join(", "));
+    }
+  }, [profile?.uid, profile?.name, profile?.phone, profile?.addresses]);
 
   useEffect(() => {
-    /* Show fallback data after 2 s if Firestore hasn't responded */
+    /* Show fallback data after 2 s if Supabase hasn't responded */
     const fallbackTimer = setTimeout(() => setLoading(false), 2000);
     const unsub = subscribeSubscriptionPlans((docs) => {
       if (docs.length > 0) setPlans(docs as SubscriptionPlan[]);
@@ -102,12 +101,81 @@ function SubscriptionsPage() {
     };
   }, []);
 
+  const phoneDigits = phone.replace(/\D/g, "");
+  const formValid =
+    name.trim().length >= 2 && phoneDigits.length >= 10 && address.trim().length > 5;
+
+  const openConfirm = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan.id);
+    setSubmitError(null);
+    setConfirmPlan(plan);
+  };
+
+  const handleConfirmSubscribe = async () => {
+    if (!confirmPlan || !formValid || submitting) return;
+    if (!profile?.uid) {
+      setSubmitError("Please sign in to subscribe.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    const plan = confirmPlan;
+    try {
+      await setUserActivePlan(profile.uid, {
+        planId: plan.id,
+        planName: plan.name,
+        frequency: plan.deliveryFrequency,
+        price: plan.pricePerMonth,
+        startDate: new Date().toISOString().slice(0, 10),
+      });
+      const orderId = await placeOrder({
+        userId: profile.uid,
+        customer: name.trim(),
+        phone: phoneDigits,
+        items: `${plan.name} — ${plan.deliveryFrequency}`,
+        total: plan.pricePerMonth,
+        payment: "pending",
+        address: address.trim(),
+        litres: 0,
+        orderType: "subscription",
+      });
+      if (!orderId) throw new Error("Subscription could not be placed. Please try again.");
+      setPlacedDetails([
+        { label: "Plan",       value: plan.name },
+        { label: "Frequency",  value: plan.deliveryFrequency },
+        { label: "Price",      value: `₹${plan.pricePerMonth}/month` },
+        { label: "Deliver to", value: address.trim() },
+      ]);
+      setConfirmPlan(null);
+      setPlaced(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const perks = [
     { icon: Zap, text: "Pause or skip any delivery anytime" },
     { icon: Shield, text: "Cancel anytime — no lock-in" },
     { icon: Star, text: "Priority support for subscribers" },
     { icon: Droplets, text: "Fresh purified water every delivery" },
   ];
+
+  if (placed) {
+    return (
+      <OrderPlaced
+        tab="subscription"
+        title="Subscription Active!"
+        subtitle="Auto-pilot hydration is on 🚀"
+        details={placedDetails}
+        note="A vendor will confirm and start your recurring deliveries. Manage or pause your plan anytime from My Orders."
+      />
+    );
+  }
+
+  const inputCls =
+    "w-full bg-muted/50 rounded-xl border border-border/50 px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25";
 
   return (
     <div className="bg-muted/20 min-h-screen pb-28">
@@ -139,7 +207,7 @@ function SubscriptionsPage() {
             <div key={i} className="h-52 rounded-2xl shimmer" />
           ))}
         {!loading && plans.map((plan) => {
-          const color = planColors[plan.id];
+          const color = planColors[plan.id] ?? DEFAULT_COLOR;
           const savings = planSavings[plan.id] || 0;
           const isSelected = selectedPlan === plan.id;
 
@@ -222,8 +290,7 @@ function SubscriptionsPage() {
 
                 {/* CTA */}
                 <Button
-                  disabled={!!subscribing}
-                  onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
+                  onClick={(e) => { e.stopPropagation(); openConfirm(plan); }}
                   className={`w-full gap-2 rounded-xl h-11 text-sm font-extrabold transition-all ${
                     plan.popular || isSelected
                       ? `bg-gradient-to-r ${color.gradient} text-white shadow-water border-0`
@@ -231,17 +298,8 @@ function SubscriptionsPage() {
                   }`}
                   variant={plan.popular || isSelected ? "default" : "outline"}
                 >
-                  {subscribing === plan.id ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Subscribing…
-                    </>
-                  ) : (
-                    <>
-                      {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
+                  {isSelected ? "✓ Selected — Continue" : "Choose Plan"}
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
 
@@ -272,6 +330,107 @@ function SubscriptionsPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Confirm Subscription Sheet ── */}
+      <Sheet open={confirmPlan !== null} onOpenChange={(o) => { if (!o && !submitting) setConfirmPlan(null); }}>
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[92vh] overflow-y-auto pb-10">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <Droplets className="h-5 w-5 text-primary" /> Confirm Subscription
+            </SheetTitle>
+          </SheetHeader>
+
+          {confirmPlan && (
+            <div className="space-y-4">
+              {/* Plan summary */}
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${(planColors[confirmPlan.id] ?? DEFAULT_COLOR).gradient} flex items-center justify-center text-xl shrink-0`}>
+                  {(planColors[confirmPlan.id] ?? DEFAULT_COLOR).icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-extrabold text-foreground truncate">{confirmPlan.name}</h3>
+                  <p className="text-[11px] text-muted-foreground">{confirmPlan.deliveryFrequency}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-lg font-extrabold text-foreground">₹{confirmPlan.pricePerMonth}</span>
+                  <p className="text-[10px] text-muted-foreground font-bold">/month</p>
+                </div>
+              </div>
+
+              {/* Contact + address form */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                    <User className="h-3.5 w-3.5" /> Full Name
+                  </label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your name"
+                    autoComplete="name"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                    <Phone className="h-3.5 w-3.5" /> Phone Number
+                  </label>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, "").slice(0, 14))}
+                    placeholder="10-digit mobile number"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    className={inputCls}
+                  />
+                  {phone.trim().length > 0 && phoneDigits.length < 10 && (
+                    <p className="text-[11px] text-destructive font-semibold mt-1">
+                      Enter a valid 10-digit mobile number
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                    <MapPin className="h-3.5 w-3.5" /> Delivery Address
+                  </label>
+                  <textarea
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="House / Flat no., Street, Area, Pincode…"
+                    rows={3}
+                    className={`${inputCls} resize-none`}
+                  />
+                </div>
+              </div>
+
+              {submitError && (
+                <div className="flex items-start gap-2 bg-destructive/8 border border-destructive/20 rounded-xl px-3 py-2.5">
+                  <span className="text-destructive text-base shrink-0 leading-none mt-0.5">⚠</span>
+                  <p className="text-xs font-semibold text-destructive">{submitError}</p>
+                </div>
+              )}
+
+              <Button
+                onClick={handleConfirmSubscribe}
+                disabled={submitting || !formValid}
+                className="w-full h-14 rounded-2xl text-base font-extrabold gap-2 bg-gradient-to-r from-primary to-water shadow-water disabled:opacity-50"
+              >
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Activating…
+                  </span>
+                ) : (
+                  <>Confirm & Subscribe · ₹{confirmPlan.pricePerMonth}/mo</>
+                )}
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center">
+                Pay via UPI or Cash on Delivery. Cancel anytime — no lock-in.
+              </p>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
