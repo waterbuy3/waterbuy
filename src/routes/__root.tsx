@@ -194,6 +194,12 @@ function AppShell() {
 }
 
 function RootComponent() {
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
   return (
     <AppErrorBoundary>
       <AuthProvider>
