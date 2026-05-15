@@ -39,6 +39,7 @@ const html = `<!DOCTYPE html>
   </head>
   <body>
     <script type="module" src="/assets/${mainJs}"></script>
+    <script>if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.error('SW registration failed',e)})})}</script>
   </body>
 </html>
 `;
