@@ -410,19 +410,30 @@ function HomePage() {
               </p>
               <button
                 disabled={loggingWater}
+                aria-label="Log 250 millilitres of water intake"
                 onClick={async () => {
                   if (!profile?.uid) {
                     setHydration((h) => Math.min(+(h + 0.25).toFixed(3), 3));
                     return;
                   }
+                  // Optimistic UI bump
+                  setHydration((h) => Math.min(+(h + 0.25).toFixed(3), 3));
                   setLoggingWater(true);
                   const result = await logWaterIntake(profile.uid, 0.25);
                   if (result) setHydration(Math.min(result.litres, 3));
                   setLoggingWater(false);
                 }}
-                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 active:bg-white/40 disabled:opacity-60 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-white transition-colors"
+                className="flex items-center gap-1 min-h-[36px] bg-white/20 hover:bg-white/30 active:bg-white/40 disabled:opacity-60 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-white transition-colors"
               >
-                <Plus className="h-3 w-3" /> Log 250ml
+                {loggingWater ? (
+                  <span
+                    aria-hidden="true"
+                    className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"
+                  />
+                ) : (
+                  <Plus className="h-3 w-3" aria-hidden="true" />
+                )}
+                Log 250ml
               </button>
             </div>
           </div>
@@ -440,6 +451,12 @@ function HomePage() {
             See all <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
+        {instantProducts.length === 0 && (
+          <div className="mx-4 rounded-2xl bg-background border border-border/40 p-6 text-center">
+            <Zap className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs font-bold text-muted-foreground">No instant items available right now</p>
+          </div>
+        )}
         <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar px-4">
           {instantProducts.map((product) => {
             const qty = cart[product.id] || 0;
@@ -503,8 +520,9 @@ function HomePage() {
                     ) : (
                       <div className="flex items-center gap-1 bg-primary rounded-lg px-1.5 py-0.5">
                         <button
+                          aria-label={`Remove one ${product.name}`}
                           onClick={() => removeFromCart(product.id)}
-                          className="text-white text-sm font-bold px-0.5"
+                          className="text-white text-sm font-bold px-1.5 py-0.5"
                         >
                           −
                         </button>
@@ -512,8 +530,9 @@ function HomePage() {
                           {qty}
                         </span>
                         <button
+                          aria-label={`Add one ${product.name}`}
                           onClick={() => addToCart(product.id)}
-                          className="text-white text-sm font-bold px-0.5"
+                          className="text-white text-sm font-bold px-1.5 py-0.5"
                         >
                           +
                         </button>
@@ -586,8 +605,9 @@ function HomePage() {
                     ) : (
                       <div className="flex items-center gap-1 bg-primary rounded-lg px-2 py-1">
                         <button
+                          aria-label={`Remove one ${p.name}`}
                           onClick={() => removeFromCart(p.id)}
-                          className="text-white text-sm font-bold"
+                          className="text-white text-sm font-bold px-1.5"
                         >
                           −
                         </button>
@@ -595,8 +615,9 @@ function HomePage() {
                           {qty}
                         </span>
                         <button
+                          aria-label={`Add one ${p.name}`}
                           onClick={() => addToCart(p.id)}
-                          className="text-white text-sm font-bold"
+                          className="text-white text-sm font-bold px-1.5"
                         >
                           +
                         </button>

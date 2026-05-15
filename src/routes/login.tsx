@@ -35,6 +35,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpDone, setSignUpDone] = useState(false);
 
   useEffect(() => {
     if (user) navigate({ to: "/" });
@@ -90,6 +91,15 @@ function LoginPage() {
     if (!value && index > 0) otpRefs[index - 1]?.focus();
   };
 
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const digits = e.clipboardData.getData("text/plain").replace(/\D/g, "").slice(0, 6);
+    if (!digits) return;
+    const next = Array.from({ length: 6 }, (_, i) => digits[i] ?? "");
+    setOtp(next);
+    otpRefs[Math.min(digits.length, 5)]?.focus();
+  };
+
   const handleVerifyOtp = async () => {
     const code = otp.join("");
     if (code.length < 6) {
@@ -118,12 +128,18 @@ function LoginPage() {
       setLoading(true);
       setError("");
       if (isSignUp) {
-        await signUpWithEmail(email, password, fullName);
-        setError(""); // success — AuthContext will pick up the session
+        const { needsConfirmation } = await signUpWithEmail(email, password, fullName);
+        if (needsConfirmation) {
+          // Supabase requires email verification — stay on page, show message
+          setSignUpDone(true);
+          return;
+        }
+        // Auto-logged-in (email confirmation disabled) — useEffect on user navigates
       } else {
         await signInWithEmail(email, password);
+        // Don't navigate here — useEffect on `user` handles it once auth state propagates,
+        // avoiding a race condition where the guard redirects back to /login.
       }
-      navigate({ to: "/" });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "";
       setError(msg || "Authentication failed. Check your credentials.");
@@ -230,8 +246,10 @@ function LoginPage() {
             <input
               type="tel"
               inputMode="numeric"
+              autoComplete="tel-national"
+              aria-label="Mobile number"
               value={phone}
-              onChange={(e) => { setPhone(e.target.value); setError(""); }}
+              onChange={(e) => { setPhone(e.target.value.replace(/\D/g, "").slice(0, 12)); setError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
               placeholder="Mobile number"
               maxLength={12}
@@ -261,7 +279,26 @@ function LoginPage() {
       )}
 
       {/* ── Email step ───────────────────────────────────── */}
-      {step === "email" && (
+      {step === "email" && signUpDone && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-success/10 flex items-center justify-center">
+            <ShieldCheck className="h-8 w-8 text-success" />
+          </div>
+          <h2 className="text-xl font-extrabold text-foreground">Check your email</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+            We sent a confirmation link to <span className="font-bold text-foreground">{email}</span>.
+            Click it to activate your account, then sign in below.
+          </p>
+          <Button
+            className="w-full h-14 rounded-2xl font-extrabold text-sm shadow-water"
+            onClick={() => { setSignUpDone(false); setIsSignUp(false); setPassword(""); }}
+          >
+            Go to Sign In
+          </Button>
+        </div>
+      )}
+
+      {step === "email" && !signUpDone && (
         <div className="flex-1 flex flex-col gap-4">
           <button
             onClick={() => { setStep("landing"); setError(""); }}
@@ -276,6 +313,8 @@ function LoginPage() {
               value={fullName}
               onChange={(e) => { setFullName(e.target.value); setError(""); }}
               placeholder="Full name"
+              autoComplete="name"
+              aria-label="Full name"
               className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
             />
           )}
@@ -286,6 +325,9 @@ function LoginPage() {
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()}
             placeholder="Email address"
+            autoComplete="email"
+            inputMode="email"
+            aria-label="Email address"
             className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
           />
 
@@ -295,6 +337,8 @@ function LoginPage() {
             onChange={(e) => { setPassword(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()}
             placeholder="Password"
+            autoComplete={isSignUp ? "new-password" : "current-password"}
+            aria-label="Password"
             className="w-full bg-muted border border-border/60 rounded-2xl px-4 py-4 text-sm font-bold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all"
           />
 
@@ -347,12 +391,14 @@ function LoginPage() {
                 ref={(el) => { otpRefs[i] = el; }}
                 type="text"
                 inputMode="numeric"
+                autoComplete={i === 0 ? "one-time-code" : "off"}
                 maxLength={1}
                 value={digit}
                 onChange={(e) => handleOtpChange(i, e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs[i - 1]?.focus();
                 }}
+                onPaste={i === 0 ? handleOtpPaste : undefined}
                 className={`w-12 h-14 text-center text-xl font-extrabold rounded-2xl border-2 bg-muted text-foreground focus:outline-none transition-all ${
                   digit ? "border-primary bg-primary/5" : "border-border/60 focus:border-primary/50"
                 }`}

@@ -417,7 +417,7 @@ function ProductsPage() {
 
       {/* Floating Cart Bar */}
       {totalItems > 0 && (
-        <div className="fixed bottom-[76px] left-4 right-4 max-w-md mx-auto z-40 animate-in slide-in-from-bottom-3 duration-300">
+        <div className="fixed bottom-[84px] left-0 right-0 px-4 max-w-md mx-auto z-40 animate-in slide-in-from-bottom-3 duration-300">
           <div className="bg-success text-white rounded-2xl px-4 py-3.5 flex items-center shadow-2xl justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-white/20 p-2 rounded-xl">

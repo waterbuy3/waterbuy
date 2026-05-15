@@ -27,7 +27,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { cart, totalPrice, totalItems, removeFromCart, addToCart, clearCart } = useCart();
+  const { cart, totalItems, removeFromCart, addToCart, clearCart } = useCart();
   const { profile } = useAuth();
   const navigate = useNavigate();
 
@@ -101,17 +101,20 @@ function CheckoutPage() {
     })
     .filter(Boolean) as (Product & { qty: number })[];
 
+  // Use live product prices from Supabase, not the static fallback from CartContext
+  const cartSubtotal = cartItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+
   const freeAbove = deliverySettings?.freeAbove ?? 299;
   const baseFee   = deliverySettings?.fee ?? 30;
-  const deliveryFee = totalPrice >= freeAbove ? 0 : baseFee;
+  const deliveryFee = cartSubtotal >= freeAbove ? 0 : baseFee;
   const discount = coupon?.valid ? coupon.discountAmount : 0;
-  const orderTotal = Math.max(0, totalPrice + deliveryFee - discount);
+  const orderTotal = Math.max(0, cartSubtotal + deliveryFee - discount);
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
     setCouponLoading(true);
     setCouponError(null);
-    const result = await validateCoupon(couponCode, totalPrice + deliveryFee);
+    const result = await validateCoupon(couponCode, cartSubtotal + deliveryFee);
     setCoupon(result);
     if (!result.valid) setCouponError(result.error ?? "Invalid coupon");
     setCouponLoading(false);
@@ -330,6 +333,8 @@ function CheckoutPage() {
                 placeholder="House / Flat no., Street, Area…"
                 rows={2}
                 value={address}
+                autoComplete="street-address"
+                aria-label="Delivery street address"
                 onChange={(e) => setAddress(e.target.value)}
               />
               <div className="flex gap-2 mt-2">
@@ -339,12 +344,17 @@ function CheckoutPage() {
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   inputMode="numeric"
+                  autoComplete="postal-code"
+                  aria-label="Pincode"
+                  maxLength={6}
                 />
                 <input
                   className="flex-1 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
                   placeholder="Landmark (optional)"
                   value={landmark}
                   onChange={(e) => setLandmark(e.target.value)}
+                  autoComplete="off"
+                  aria-label="Landmark"
                 />
               </div>
             </>
@@ -463,7 +473,7 @@ function CheckoutPage() {
           <div className="space-y-2.5 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal ({totalItems} items)</span>
-              <span className="font-bold">₹{totalPrice.toFixed(2)}</span>
+              <span className="font-bold">₹{cartSubtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery fee</span>
@@ -475,7 +485,7 @@ function CheckoutPage() {
             </div>
             {deliveryFee > 0 && (
               <p className="text-[11px] text-primary font-semibold -mt-1">
-                Add ₹{(299 - totalPrice).toFixed(0)} more for free delivery
+                Add ₹{Math.max(0, freeAbove - cartSubtotal).toFixed(0)} more for free delivery
               </p>
             )}
             {discount > 0 && (

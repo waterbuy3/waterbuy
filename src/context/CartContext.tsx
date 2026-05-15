@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { products as allProducts } from "@/lib/data";
 
 export interface CartItem {
@@ -46,31 +46,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [cart]);
 
-  const addToCart = (id: string) => setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-
-  const removeFromCart = (id: string) =>
-    setCart((prev) => {
-      const c = { ...prev };
-      if (c[id] > 1) c[id]--;
-      else delete c[id];
-      return c;
-    });
-
-  const clearCart = () => setCart({});
-
-  const totalItems = Object.values(cart).reduce((s, q) => s + q, 0);
-  const totalPrice = Object.entries(cart).reduce((s, [id, qty]) => {
-    const p = allProducts.find((p) => p.id === id);
-    return s + (p ? p.price * qty : 0);
-  }, 0);
-
-  return (
-    <CartContext.Provider
-      value={{ cart, totalItems, totalPrice, addToCart, removeFromCart, clearCart }}
-    >
-      {children}
-    </CartContext.Provider>
+  const addToCart = useCallback(
+    (id: string) => setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 })),
+    [],
   );
+
+  const removeFromCart = useCallback(
+    (id: string) =>
+      setCart((prev) => {
+        const c = { ...prev };
+        if (c[id] > 1) c[id]--;
+        else delete c[id];
+        return c;
+      }),
+    [],
+  );
+
+  const clearCart = useCallback(() => setCart({}), []);
+
+  const { totalItems, totalPrice } = useMemo(() => {
+    let items = 0;
+    let price = 0;
+    for (const [id, qty] of Object.entries(cart)) {
+      items += qty;
+      const p = allProducts.find((pp) => pp.id === id);
+      if (p) price += p.price * qty;
+    }
+    return { totalItems: items, totalPrice: price };
+  }, [cart]);
+
+  const value = useMemo(
+    () => ({ cart, totalItems, totalPrice, addToCart, removeFromCart, clearCart }),
+    [cart, totalItems, totalPrice, addToCart, removeFromCart, clearCart],
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
 export const useCart = () => useContext(CartContext);

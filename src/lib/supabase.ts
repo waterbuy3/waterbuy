@@ -72,14 +72,20 @@ export async function signInWithEmail(email: string, password: string): Promise<
   if (error) throw error;
 }
 
-export async function signUpWithEmail(email: string, password: string, fullName: string): Promise<void> {
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  fullName: string,
+): Promise<{ needsConfirmation: boolean }> {
   if (!supabase) throw new Error("Supabase not configured");
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { data: { full_name: fullName } },
   });
   if (error) throw error;
+  // session is null when Supabase requires email confirmation
+  return { needsConfirmation: data.session === null };
 }
 
 export async function supabaseSignOut(): Promise<void> {
@@ -89,11 +95,9 @@ export async function supabaseSignOut(): Promise<void> {
 
 export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
   if (!supabase) return () => {};
+  // onAuthStateChange fires INITIAL_SESSION on startup — no need for getSession()
+  // which would double-fire the callback and cause race conditions in AuthContext.
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session?.user ? adaptUser(session.user) : null);
-  });
-  // Fire immediately with current session
-  supabase.auth.getSession().then(({ data: { session } }) => {
     callback(session?.user ? adaptUser(session.user) : null);
   });
   return () => data.subscription.unsubscribe();
@@ -167,7 +171,15 @@ function rowToProfile(row: Record<string, unknown>): UserProfile {
 
 export async function upsertUser(user: User): Promise<void> {
   if (!supabase) return;
-  const code = `AQUA${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  // Preserve referral_code on subsequent logins — only generate for new users
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("referral_code")
+    .eq("uid", user.uid)
+    .maybeSingle();
+  const referralCode =
+    (existing as { referral_code?: string } | null)?.referral_code ||
+    `AQUA${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
   await supabase.from("profiles").upsert(
     {
       uid: user.uid,
@@ -175,7 +187,7 @@ export async function upsertUser(user: User): Promise<void> {
       phone: user.phoneNumber ?? "",
       email: user.email ?? "",
       photo_url: user.photoURL ?? "",
-      referral_code: code,
+      referral_code: referralCode,
     },
     { onConflict: "uid", ignoreDuplicates: false },
   );
@@ -234,7 +246,7 @@ export function subscribeProducts(callback: (docs: unknown[]) => void): () => vo
   fetch();
 
   const channel = supabase
-    .channel("products-changes")
+    .channel(`products-changes-${Math.random().toString(36).slice(2, 8)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetch())
     .subscribe();
 
@@ -256,7 +268,7 @@ export function subscribeCategories(callback: (docs: unknown[]) => void): () => 
   fetch();
 
   const channel = supabase
-    .channel("categories-changes")
+    .channel(`categories-changes-${Math.random().toString(36).slice(2, 8)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => fetch())
     .subscribe();
 
@@ -285,7 +297,7 @@ export function subscribeSubscriptionPlans(callback: (docs: unknown[]) => void):
   fetch();
 
   const channel = supabase
-    .channel("plans-changes")
+    .channel(`plans-changes-${Math.random().toString(36).slice(2, 8)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "subscription_plans" }, () => fetch())
     .subscribe();
 
@@ -340,7 +352,7 @@ export function subscribeDeliverySettings(
   fetch();
 
   const channel = supabase
-    .channel("settings-delivery")
+    .channel(`settings-delivery-${Math.random().toString(36).slice(2, 8)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: "id=eq.delivery" }, () => fetch())
     .subscribe();
 
@@ -364,7 +376,7 @@ export function subscribeHomeContent(callback: (data: unknown | null) => void): 
   fetch();
 
   const channel = supabase
-    .channel("content-changes")
+    .channel(`content-changes-${Math.random().toString(36).slice(2, 8)}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "content", filter: "id=eq.home" },
@@ -615,6 +627,20 @@ export async function setUserActivePlan(uid: string, plan: ActivePlan | null): P
   await supabase!.from("profiles").update({ active_plan: plan }).eq("uid", uid);
 }
 
+// Sync schedule records so the admin panel reflects plan pause/cancel immediately.
+export async function setUserSchedulesStatus(
+  uid: string,
+  status: "active" | "paused" | "cancelled",
+): Promise<void> {
+  if (!supabase) return;
+  const fromStatuses = status === "cancelled" ? ["active", "paused"] : ["active"];
+  await supabase!
+    .from("schedules")
+    .update({ status })
+    .eq("user_id", uid)
+    .in("status", fromStatuses);
+}
+
 // ─── Coupons ──────────────────────────────────────────────────────────────────
 
 export interface CouponResult {
@@ -648,12 +674,28 @@ export async function validateCoupon(code: string, orderTotal: number): Promise<
 
 export async function incrementCouponUsage(code: string): Promise<void> {
   if (!supabase) return;
-  await supabase.rpc("increment_coupon_usage", { coupon_code: code }).catch(() => {
-    // fallback: manual increment
-    supabase!.from("coupons").select("used_count").eq("code", code).single().then(({ data }) => {
-      if (data) supabase!.from("coupons").update({ used_count: (data as { used_count: number }).used_count + 1 }).eq("code", code);
-    });
-  });
+  try {
+    const { error } = await supabase.rpc("increment_coupon_usage", { coupon_code: code });
+    if (!error) return;
+    // RPC missing or failed — fall through to manual increment
+  } catch {
+    /* fallthrough */
+  }
+  try {
+    const { data } = await supabase
+      .from("coupons")
+      .select("used_count")
+      .eq("code", code)
+      .single();
+    if (data) {
+      await supabase
+        .from("coupons")
+        .update({ used_count: (data as { used_count: number }).used_count + 1 })
+        .eq("code", code);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── Support Messages ─────────────────────────────────────────────────────────
@@ -679,7 +721,7 @@ export function subscribeUserSupportMessages(
     callback(data ?? []);
   };
   fetch();
-  const ch = supabase.channel(`support-${userId}-${Math.random().toString(36).slice(2)}`)
+  const ch = supabase.channel(`support-${userId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "support_messages", filter: `user_id=eq.${userId}` }, fetch)
     .subscribe();
   return () => { supabase!.removeChannel(ch); };
@@ -706,7 +748,7 @@ export function subscribeNotifications(
     })));
   };
   fetch();
-  const ch = supabase.channel(`notif-${userId}-${Math.random().toString(36).slice(2)}`)
+  const ch = supabase.channel(`notif-${userId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, fetch)
     .subscribe();
   return () => { supabase!.removeChannel(ch); };

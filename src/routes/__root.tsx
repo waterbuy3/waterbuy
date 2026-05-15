@@ -12,8 +12,37 @@ import { BottomNav } from "@/components/BottomNav";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
-import { useEffect } from "react";
+import { useEffect, Component, type ReactNode } from "react";
 import { Droplets } from "lucide-react";
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center bg-background">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <Droplets className="h-8 w-8 text-destructive" />
+          </div>
+          <h1 className="text-xl font-extrabold text-foreground">Something went wrong</h1>
+          <p className="text-sm text-muted-foreground">{this.state.error.message}</p>
+          <button
+            onClick={() => { this.setState({ error: null }); window.location.href = "/"; }}
+            className="mt-2 px-6 py-3 bg-primary text-white rounded-2xl font-extrabold text-sm"
+          >
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 import appCss from "../styles.css?url";
 
@@ -166,10 +195,12 @@ function AppShell() {
 
 function RootComponent() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <AppShell />
-      </CartProvider>
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <CartProvider>
+          <AppShell />
+        </CartProvider>
+      </AuthProvider>
+    </AppErrorBoundary>
   );
 }

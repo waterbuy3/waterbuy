@@ -1,11 +1,10 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
 import { subscribeSubscriptionPlans, setUserActivePlan, placeOrder } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import {
   Check,
-  ChevronRight,
   Droplets,
   CalendarDays,
   Zap,
@@ -57,10 +56,11 @@ function SubscriptionsPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(FALLBACK_PLANS);
   const [loading, setLoading] = useState(true);
-  const [subscribing, setSubscribing] = useState(false);
+  const [subscribing, setSubscribing] = useState<string | null>(null);
 
   const handleSubscribe = async (plan: SubscriptionPlan) => {
-    setSubscribing(true);
+    if (subscribing) return;
+    setSubscribing(plan.id);
     try {
       if (profile?.uid) {
         await setUserActivePlan(profile.uid, {
@@ -84,7 +84,7 @@ function SubscriptionsPage() {
         });
       }
     } catch { /* non-fatal */ }
-    finally { setSubscribing(false); }
+    finally { setSubscribing(null); }
     navigate({ to: "/schedule" });
   };
 
@@ -222,8 +222,8 @@ function SubscriptionsPage() {
 
                 {/* CTA */}
                 <Button
-                  disabled={subscribing}
-                  onClick={() => handleSubscribe(plan)}
+                  disabled={!!subscribing}
+                  onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
                   className={`w-full gap-2 rounded-xl h-11 text-sm font-extrabold transition-all ${
                     plan.popular || isSelected
                       ? `bg-gradient-to-r ${color.gradient} text-white shadow-water border-0`
@@ -231,8 +231,17 @@ function SubscriptionsPage() {
                   }`}
                   variant={plan.popular || isSelected ? "default" : "outline"}
                 >
-                  {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
-                  <ArrowRight className="h-4 w-4" />
+                  {subscribing === plan.id ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Subscribing…
+                    </>
+                  ) : (
+                    <>
+                      {isSelected ? "✓ Selected — Schedule Now" : "Choose Plan"}{" "}
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </div>
 

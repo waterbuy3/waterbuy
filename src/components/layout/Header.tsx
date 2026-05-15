@@ -13,7 +13,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
-import { subscribeNotifications, markNotificationsRead } from "@/lib/supabase";
+import { subscribeNotifications } from "@/lib/supabase";
 
 export function Header() {
   const { user, profile } = useAuth();
@@ -23,8 +23,8 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const [locationLabel, setLocationLabel] = useState("Home");
-  const [locationSub, setLocationSub] = useState("123 Main St, Block A, Green Valley");
+  const [locationLabel, setLocationLabel] = useState("Set location");
+  const [locationSub, setLocationSub] = useState("Tap to detect your location");
   const [isLocating, setIsLocating] = useState(false);
   const [notifUnread, setNotifUnread] = useState(0);
   const [query, setQuery] = useState("");
@@ -44,6 +44,17 @@ export function Header() {
       setQuery("");
     }
   }, [location.pathname]);
+
+  // Use user's default address as location label if available
+  useEffect(() => {
+    const def = profile?.addresses?.find((a) => a.isDefault) ?? profile?.addresses?.[0];
+    if (def) {
+      setLocationLabel(def.tag || "Home");
+      setLocationSub(
+        [def.line1, def.pincode].filter(Boolean).join(" – ").slice(0, 60),
+      );
+    }
+  }, [profile?.addresses]);
 
   const displayName = profile?.name || user?.displayName || "";
   const initials =
@@ -184,9 +195,9 @@ export function Header() {
             {/* Notification bell */}
             <Link
               to="/profile"
+              search={{ sheet: "notifications" }}
               className="relative"
               aria-label={`Notifications${notifUnread > 0 ? `, ${notifUnread} unread` : ""}`}
-              onClick={() => { if (profile?.uid) markNotificationsRead(profile.uid); }}
             >
               <Button
                 variant="ghost"
@@ -208,7 +219,7 @@ export function Header() {
             </Link>
 
             {/* Profile avatar */}
-            <Link to="/profile" aria-label="Profile">
+            <Link to="/profile" search={{ sheet: undefined }} aria-label="Profile">
               {photoURL ? (
                 <img
                   src={photoURL}

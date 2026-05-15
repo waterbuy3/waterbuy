@@ -75,7 +75,8 @@ function SchedulePage() {
         [def.line1, def.pincode, def.landmark].filter(Boolean).join(", "),
       );
     }
-  }, [savedAddresses.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.uid, savedAddresses.length]);
 
   const handleSelectAddress = (addr: UserAddress) => {
     setSelectedAddressId(addr.id);
@@ -204,7 +205,7 @@ function SchedulePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 pb-24 sm:pb-8">
+    <div className="mx-auto max-w-2xl px-4 py-8 pb-28">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-extrabold text-foreground">Schedule Delivery</h1>
         <p className="mt-2 text-muted-foreground">Set up your automated hydration</p>
@@ -277,11 +278,18 @@ function SchedulePage() {
             </div>
 
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 no-scrollbar">
+              {filteredProducts.length === 0 && (
+                <div className="text-center py-8">
+                  <Package className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-muted-foreground">No products in this category</p>
+                </div>
+              )}
               {filteredProducts.map((p) => (
-                <div
+                <button
                   key={p.id}
+                  type="button"
                   onClick={() => setSelectedProduct(p.id)}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer text-left ${
                     selectedProduct === p.id
                       ? "border-primary bg-primary/5 shadow-sm"
                       : "border-border/50 hover:border-primary/30 hover:bg-muted/30"
@@ -301,7 +309,7 @@ function SchedulePage() {
                   <div className="text-right">
                     <span className="font-extrabold text-primary">₹{p.price.toFixed(2)}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -348,10 +356,10 @@ function SchedulePage() {
             />
             <div className="mt-4 text-center">
               <button
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground py-2 px-4 min-h-[44px]"
                 onClick={() => setStep(1)}
               >
-                Back to product
+                ← Back to product
               </button>
             </div>
           </div>

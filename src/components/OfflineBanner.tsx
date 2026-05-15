@@ -20,9 +20,13 @@ export function OfflineBanner() {
   if (!offline) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-center gap-2 bg-destructive py-2 text-xs font-bold text-white shadow-md">
-      <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      You're offline — showing cached data
+    <div
+      role="status"
+      aria-live="polite"
+      className="sticky top-0 z-[100] flex items-center justify-center gap-2 bg-destructive py-2 text-xs font-bold text-white shadow-md"
+    >
+      <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      You&apos;re offline — showing cached data
     </div>
   );
 }

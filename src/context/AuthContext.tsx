@@ -40,7 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Safety valve: never block the app indefinitely if Supabase is unreachable.
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
+    let mounted = true;
+
     const unsubAuth = subscribeToAuthState((supabaseUser) => {
+      if (!mounted) return;
       if (unsubProfileRef.current) {
         unsubProfileRef.current();
         unsubProfileRef.current = null;
@@ -52,16 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (supabaseUser) {
         upsertUser(supabaseUser).catch(() => {});
         unsubProfileRef.current = subscribeUserProfile(supabaseUser.uid, (p) => {
+          if (!mounted) return;
           setProfile(p);
           setLoading(false);
+          clearTimeout(timeout);
         });
       } else {
         setProfile(null);
         setLoading(false);
+        clearTimeout(timeout);
       }
     });
 
     return () => {
+      mounted = false;
+      clearTimeout(timeout);
       unsubAuth();
       if (unsubProfileRef.current) {
         unsubProfileRef.current();

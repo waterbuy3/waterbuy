@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   saveUserAddress,
   deleteUserAddress,
@@ -49,11 +49,15 @@ import {
   subscribeUserSupportMessages,
   subscribeNotifications,
   markNotificationsRead,
+  setUserSchedulesStatus,
   type UserAddress,
   type AppNotification,
 } from "@/lib/supabase";
 
 export const Route = createFileRoute("/profile")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    sheet: typeof search.sheet === "string" ? (search.sheet as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Profile — AquaPure Water Delivery" },
@@ -137,25 +141,65 @@ const statusColor: Record<string, string> = {
 
 function safeParseDate(ts: unknown): string {
   if (!ts) return "—";
+  const fmt = (d: Date) =>
+    isNaN(d.getTime())
+      ? "—"
+      : d.toLocaleString("en-IN", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+  // Firestore-style { seconds: number }
   if (typeof ts === "object" && ts !== null && "seconds" in (ts as Record<string, unknown>)) {
     const secs = (ts as Record<string, unknown>).seconds;
-    if (typeof secs === "number") {
-      return new Date(secs * 1000).toLocaleString("en-IN", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
+    if (typeof secs === "number") return fmt(new Date(secs * 1000));
   }
+  // ISO string from Supabase
+  if (typeof ts === "string") return fmt(new Date(ts));
+  // Already a Date
+  if (ts instanceof Date) return fmt(ts);
+  // Numeric ms timestamp
+  if (typeof ts === "number") return fmt(new Date(ts));
   return "—";
 }
 
 function ProfilePage() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const { sheet: sheetParam } = Route.useSearch();
 
   const [activeSheet, setActiveSheet] = useState<SheetId>(null);
+
+  // Open sheet based on URL search param (e.g. ?sheet=notifications from header bell)
+  useEffect(() => {
+    const valid: SheetId[] = [
+      "orders",
+      "addresses",
+      "payments",
+      "notifications",
+      "privacy",
+      "help",
+      "refer",
+    ];
+    if (sheetParam && (valid as string[]).includes(sheetParam)) {
+      setActiveSheet(sheetParam as SheetId);
+    }
+  }, [sheetParam]);
+
+  // Clear `?sheet=` from URL when no sheet open so reopening works after deep link
+  useEffect(() => {
+    if (activeSheet === null && sheetParam) {
+      navigate({ to: "/profile", search: { sheet: undefined }, replace: true });
+    }
+  }, [activeSheet, sheetParam, navigate]);
+
+  // When notifications sheet is open, mark all as read
+  useEffect(() => {
+    if (activeSheet === "notifications" && profile?.uid) {
+      markNotificationsRead(profile.uid).catch(() => {});
+    }
+  }, [activeSheet, profile?.uid]);
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -442,11 +486,12 @@ function ProfilePage() {
                 disabled={planActing}
                 onClick={async () => {
                   if (!profile?.uid || !profile.activePlan) return;
+                  const nowPaused = !profile.activePlan.paused;
                   setPlanActing(true);
-                  await setUserActivePlan(profile.uid, {
-                    ...profile.activePlan,
-                    paused: !profile.activePlan.paused,
-                  }).catch(() => {});
+                  await Promise.all([
+                    setUserActivePlan(profile.uid, { ...profile.activePlan, paused: nowPaused }).catch(() => {}),
+                    setUserSchedulesStatus(profile.uid, nowPaused ? "paused" : "active").catch(() => {}),
+                  ]);
                   setPlanActing(false);
                 }}
                 className="flex-1 py-2 rounded-xl text-xs font-extrabold bg-white/20 text-white hover:bg-white/30 transition-colors disabled:opacity-60"
@@ -486,23 +531,36 @@ function ProfilePage() {
 
       {/* Cancel Plan Confirmation Dialog */}
       {planAction === "cancel" && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm px-4 pb-8">
-          <div className="w-full max-w-sm bg-background rounded-3xl p-6 shadow-xl">
-            <h3 className="text-base font-extrabold text-foreground mb-1">Cancel Subscription?</h3>
-            <p className="text-sm text-muted-foreground mb-5">
-              Your plan will be cancelled immediately. You can always subscribe again anytime.
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm px-4"
+          style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
+          onClick={() => !planActing && setPlanAction(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-background rounded-3xl p-6 shadow-2xl mb-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+            </div>
+            <h3 className="text-base font-extrabold text-foreground mb-1 text-center">Cancel Subscription?</h3>
+            <p className="text-sm text-muted-foreground mb-5 text-center leading-relaxed">
+              Your plan and all scheduled deliveries will be cancelled immediately. You can always resubscribe anytime.
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1 rounded-2xl" onClick={() => setPlanAction(null)}>
+              <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setPlanAction(null)}>
                 Keep Plan
               </Button>
               <Button
                 disabled={planActing}
-                className="flex-1 rounded-2xl bg-destructive hover:bg-destructive/90 text-white border-0"
+                className="flex-1 rounded-2xl h-12 bg-destructive hover:bg-destructive/90 text-white border-0"
                 onClick={async () => {
                   if (!profile?.uid) return;
                   setPlanActing(true);
-                  await setUserActivePlan(profile.uid, null).catch(() => {});
+                  await Promise.all([
+                    setUserActivePlan(profile.uid, null).catch(() => {}),
+                    setUserSchedulesStatus(profile.uid, "cancelled").catch(() => {}),
+                  ]);
                   setPlanActing(false);
                   setPlanAction(null);
                 }}
@@ -898,6 +956,8 @@ function ProfilePage() {
                   placeholder="House / Flat no., Street, Area…"
                   value={newLine1}
                   onChange={(e) => setNewLine1(e.target.value)}
+                  autoComplete="street-address"
+                  aria-label="Street address"
                 />
                 <div className="flex gap-2">
                   <input
@@ -906,6 +966,9 @@ function ProfilePage() {
                     value={newPincode}
                     onChange={(e) => setNewPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     inputMode="numeric"
+                    autoComplete="postal-code"
+                    aria-label="Pincode"
+                    maxLength={6}
                   />
                   <input
                     className="flex-1 bg-background rounded-xl border border-border/50 px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
@@ -1003,10 +1066,7 @@ function ProfilePage() {
       </Sheet>
 
       {/* Notifications */}
-      <Sheet open={activeSheet === "notifications"} onOpenChange={(o) => {
-        if (!o && profile?.uid) markNotificationsRead(profile.uid);
-        if (!o) setActiveSheet(null);
-      }}>
+      <Sheet open={activeSheet === "notifications"} onOpenChange={(o) => { if (!o) setActiveSheet(null); }}>
         <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh] overflow-y-auto pb-10">
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
