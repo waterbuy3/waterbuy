@@ -1,6 +1,7 @@
 {
   "name": "AquaPure Water Delivery",
   "short_name": "AquaPure",
+  "id": "/",
   "description": "Fresh purified water delivered to your door",
   "start_url": "/",
   "scope": "/",
