@@ -27,15 +27,17 @@ const CartContext = createContext<CartContextValue>({
 const STORAGE_KEY = "aquapure_cart";
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<Record<string, number>>(() => {
-    if (typeof window === "undefined") return {};
+  const [cart, setCart] = useState<Record<string, number>>({});
+
+  // Load from localStorage after hydration (avoids SSR/client mismatch)
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : {};
+      if (stored) setCart(JSON.parse(stored));
     } catch {
-      return {};
+      /* corrupted — ignore */
     }
-  });
+  }, []);
 
   // Persist to localStorage on every change
   useEffect(() => {
