@@ -121,6 +121,8 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
+const SW_SCRIPT = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}`;
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -130,6 +132,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
       <body>
         {children}
         <Scripts />
+        {/* Inline SW registration — fires on HTML parse, not waiting for hydration */}
+        <script dangerouslySetInnerHTML={{ __html: SW_SCRIPT }} />
       </body>
     </html>
   );
@@ -194,12 +198,6 @@ function AppShell() {
 }
 
 function RootComponent() {
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-  }, []);
-
   return (
     <AppErrorBoundary>
       <AuthProvider>
