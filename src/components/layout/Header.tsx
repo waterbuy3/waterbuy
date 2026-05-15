@@ -34,7 +34,7 @@ export function Header() {
     if (!profile?.uid) return;
     const unsub = subscribeNotifications(profile.uid, (notifs) => {
       setNotifUnread(notifs.filter((n) => !n.read).length);
-    });
+    }, "header");
     return unsub;
   }, [profile?.uid]);
 

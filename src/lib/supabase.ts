@@ -734,9 +734,12 @@ export interface AppNotification {
   type: string; read: boolean; data: Record<string, unknown>; createdAt: string;
 }
 
+// slot prevents channel name collision when multiple components subscribe simultaneously
+// (e.g. Header badge + Profile sheet both call this for the same user).
 export function subscribeNotifications(
   userId: string,
-  callback: (notifs: AppNotification[]) => void
+  callback: (notifs: AppNotification[]) => void,
+  slot = "default",
 ): () => void {
   if (!supabase) { callback([]); return () => {}; }
   const fetch = async () => {
@@ -748,7 +751,7 @@ export function subscribeNotifications(
     })));
   };
   fetch();
-  const ch = supabase.channel(`notif-${userId}`)
+  const ch = supabase.channel(`notif-${userId}-${slot}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, fetch)
     .subscribe();
   return () => { supabase!.removeChannel(ch); };
