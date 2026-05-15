@@ -260,10 +260,11 @@ function ProfilePage() {
   const email = profile?.email || user?.email || "";
   const initials = displayName
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() || "?";
   const photoURL = profile?.photoURL || user?.photoURL || "";
   const referralCode = profile?.referralCode || "AQUA-DEMO";
   const addresses: UserAddress[] = profile?.addresses ?? [];
@@ -275,13 +276,13 @@ function ProfilePage() {
     const unsubOrders = subscribeUserOrders(profile.uid, (docs) => {
       const mapped = (docs as Record<string, unknown>[]).map((d) => ({
         id: String(d.id ?? ""),
-        date: safeParseDate(d.placedAt),
+        date: safeParseDate(d.placed_at),
         status: String(d.status ?? "pending"),
         items: String(d.items ?? ""),
         total: Number(d.total ?? 0),
         payment: String(d.payment ?? ""),
         address: String(d.address ?? ""),
-        orderType: (d.orderType as "cart" | "subscription") ?? "cart",
+        orderType: (d.order_type as "cart" | "subscription") ?? "cart",
       }));
       setOrders(mapped);
       setOrdersLoading(false);

@@ -207,7 +207,9 @@ function CheckoutPage() {
           <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
             Estimated Delivery
           </p>
-          <p className="text-base font-extrabold">Today, 4 – 6 PM</p>
+          <p className="text-base font-extrabold">
+            {deliverySettings?.etaMins ? `Within ${deliverySettings.etaMins} mins` : "Today"}
+          </p>
           <p className="text-xs text-muted-foreground">You'll receive a call before delivery</p>
         </div>
         <p className="text-xs text-muted-foreground animate-pulse">Redirecting to home…</p>
@@ -363,7 +365,9 @@ function CheckoutPage() {
           <div className="flex items-center gap-2 mt-3 p-3 bg-primary/8 rounded-xl">
             <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
             <p className="text-xs font-semibold text-primary">
-              Estimated delivery: <span className="font-extrabold">Today, 4 – 6 PM</span>
+              Estimated delivery: <span className="font-extrabold">
+                {deliverySettings?.etaMins ? `Within ${deliverySettings.etaMins} mins` : "Today"}
+              </span>
             </p>
           </div>
         </div>
