@@ -16,9 +16,11 @@ import {
   Clock,
   Tag,
   PenLine,
+  X,
+  BadgePercent,
 } from "lucide-react";
 import { products as FALLBACK_PRODUCTS, type Product } from "@/lib/data";
-import { subscribeProducts, subscribeDeliverySettings, placeOrder, type UserAddress, type DeliverySettings } from "@/lib/supabase";
+import { subscribeProducts, subscribeDeliverySettings, placeOrder, validateCoupon, incrementCouponUsage, type UserAddress, type DeliverySettings, type CouponResult } from "@/lib/supabase";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -38,6 +40,10 @@ function CheckoutPage() {
   const [placed, setPlaced] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [coupon, setCoupon] = useState<CouponResult | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,7 +104,24 @@ function CheckoutPage() {
   const freeAbove = deliverySettings?.freeAbove ?? 299;
   const baseFee   = deliverySettings?.fee ?? 30;
   const deliveryFee = totalPrice >= freeAbove ? 0 : baseFee;
-  const orderTotal = totalPrice + deliveryFee;
+  const discount = coupon?.valid ? coupon.discountAmount : 0;
+  const orderTotal = Math.max(0, totalPrice + deliveryFee - discount);
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponError(null);
+    const result = await validateCoupon(couponCode, totalPrice + deliveryFee);
+    setCoupon(result);
+    if (!result.valid) setCouponError(result.error ?? "Invalid coupon");
+    setCouponLoading(false);
+  };
+
+  const removeCoupon = () => {
+    setCoupon(null);
+    setCouponCode("");
+    setCouponError(null);
+  };
 
   // Parse litres from product size string e.g. "5L" → 5, "500ml" → 0.5
   const parseLitres = (size: string): number => {
@@ -131,6 +154,7 @@ function CheckoutPage() {
         litres: +totalLitres.toFixed(2),
       });
       if (!orderId) throw new Error("Order could not be placed. Please try again.");
+      if (coupon?.valid) await incrementCouponUsage(coupon.code);
       clearCart();
       setPlaced(true);
       redirectTimerRef.current = setTimeout(() => navigate({ to: "/" }), 3200);
@@ -333,6 +357,42 @@ function CheckoutPage() {
           </div>
         </div>
 
+        {/* Coupon Code */}
+        <div className="bg-background rounded-2xl border border-border/40 shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BadgePercent className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-extrabold">Coupon Code</h2>
+          </div>
+          {coupon?.valid ? (
+            <div className="flex items-center justify-between bg-success/10 border border-success/30 rounded-xl px-3 py-2.5">
+              <div>
+                <p className="text-sm font-extrabold text-success">{coupon.code} applied!</p>
+                <p className="text-xs text-success/80 font-medium">
+                  {coupon.discountType === "percent" ? `${coupon.discountValue}%` : `₹${coupon.discountValue}`} off — saving ₹{coupon.discountAmount.toFixed(0)}
+                </p>
+              </div>
+              <button onClick={removeCoupon} className="p-1 rounded-lg hover:bg-success/20 text-success">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                value={couponCode}
+                onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
+                placeholder="Enter coupon code"
+                className="flex-1 bg-muted/50 rounded-xl border border-border/50 px-3 py-2 text-sm font-medium uppercase placeholder:normal-case placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+              />
+              <Button onClick={applyCoupon} disabled={couponLoading || !couponCode.trim()} variant="outline"
+                className="rounded-xl font-extrabold px-4 border-primary/40 text-primary">
+                {couponLoading ? "..." : "Apply"}
+              </Button>
+            </div>
+          )}
+          {couponError && <p className="text-xs text-destructive font-semibold mt-2">{couponError}</p>}
+        </div>
+
         {/* Payment Method */}
         <div className="bg-background rounded-2xl border border-border/40 shadow-sm p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -416,6 +476,12 @@ function CheckoutPage() {
               <p className="text-[11px] text-primary font-semibold -mt-1">
                 Add ₹{(299 - totalPrice).toFixed(0)} more for free delivery
               </p>
+            )}
+            {discount > 0 && (
+              <div className="flex justify-between text-success">
+                <span className="font-semibold">Coupon ({coupon!.code})</span>
+                <span className="font-bold">−₹{discount.toFixed(2)}</span>
+              </div>
             )}
             <div className="border-t border-border/40 pt-2.5 flex justify-between items-baseline">
               <span className="font-extrabold text-base">Total</span>

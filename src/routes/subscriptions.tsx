@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { subscriptionPlans as FALLBACK_PLANS, type SubscriptionPlan } from "@/lib/data";
-import { subscribeSubscriptionPlans, setUserActivePlan } from "@/lib/supabase";
+import { subscribeSubscriptionPlans, setUserActivePlan, placeOrder } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import {
   Check,
@@ -60,17 +60,30 @@ function SubscriptionsPage() {
   const [subscribing, setSubscribing] = useState(false);
 
   const handleSubscribe = async (plan: SubscriptionPlan) => {
-    if (profile?.uid) {
-      setSubscribing(true);
-      await setUserActivePlan(profile.uid, {
-        planId: plan.id,
-        planName: plan.name,
-        frequency: plan.deliveryFrequency,
-        price: plan.pricePerMonth,
-        startDate: new Date().toISOString().slice(0, 10),
-      }).catch(() => {});
-      setSubscribing(false);
-    }
+    setSubscribing(true);
+    try {
+      if (profile?.uid) {
+        await setUserActivePlan(profile.uid, {
+          planId: plan.id,
+          planName: plan.name,
+          frequency: plan.deliveryFrequency,
+          price: plan.pricePerMonth,
+          startDate: new Date().toISOString().slice(0, 10),
+        });
+        // Create a subscription order record so admin can see it
+        await placeOrder({
+          userId: profile.uid,
+          customer: profile.name || "Guest",
+          phone: profile.phone || "",
+          items: `${plan.name} — ${plan.deliveryFrequency}`,
+          total: plan.pricePerMonth,
+          payment: "pending",
+          address: profile.addresses?.[0]?.line1 || "TBD",
+          litres: 0,
+        });
+      }
+    } catch { /* non-fatal */ }
+    finally { setSubscribing(false); }
     navigate({ to: "/schedule" });
   };
 

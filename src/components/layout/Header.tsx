@@ -13,6 +13,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { subscribeNotifications, markNotificationsRead } from "@/lib/supabase";
 
 export function Header() {
   const { user, profile } = useAuth();
@@ -25,9 +26,17 @@ export function Header() {
   const [locationLabel, setLocationLabel] = useState("Home");
   const [locationSub, setLocationSub] = useState("123 Main St, Block A, Green Valley");
   const [isLocating, setIsLocating] = useState(false);
-  const [notifCount] = useState(3);
+  const [notifUnread, setNotifUnread] = useState(0);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const unsub = subscribeNotifications(profile.uid, (notifs) => {
+      setNotifUnread(notifs.filter((n) => !n.read).length);
+    });
+    return unsub;
+  }, [profile?.uid]);
 
   // Sync query from URL when on /products
   useEffect(() => {
@@ -176,7 +185,8 @@ export function Header() {
             <Link
               to="/profile"
               className="relative"
-              aria-label={`Notifications${notifCount > 0 ? `, ${notifCount} unread` : ""}`}
+              aria-label={`Notifications${notifUnread > 0 ? `, ${notifUnread} unread` : ""}`}
+              onClick={() => { if (profile?.uid) markNotificationsRead(profile.uid); }}
             >
               <Button
                 variant="ghost"
@@ -187,12 +197,12 @@ export function Header() {
               >
                 <Bell className="h-5 w-5 text-foreground" />
               </Button>
-              {notifCount > 0 && (
+              {notifUnread > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center animate-badge-pop"
+                  className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center px-0.5 animate-badge-pop"
                 >
-                  {notifCount}
+                  {notifUnread > 9 ? "9+" : notifUnread}
                 </span>
               )}
             </Link>

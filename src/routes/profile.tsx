@@ -30,6 +30,8 @@ import {
   ChevronUp,
   Check,
   AlertCircle,
+  Send,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -41,7 +43,12 @@ import {
   deleteUserAddress,
   setDefaultAddress,
   subscribeUserOrders,
+  sendSupportMessage,
+  subscribeUserSupportMessages,
+  subscribeNotifications,
+  markNotificationsRead,
   type UserAddress,
+  type AppNotification,
 } from "@/lib/supabase";
 
 export const Route = createFileRoute("/profile")({
@@ -163,6 +170,25 @@ function ProfilePage() {
 
   /* Privacy inline edit state */
   const [privacyInfo, setPrivacyInfo] = useState<string | null>(null);
+
+  /* Notifications */
+  const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
+  const unreadCount = appNotifications.filter((n) => !n.read).length;
+
+  /* Support chat */
+  interface SupportMsg { id: string; message: string; admin_reply: string | null; created_at: string; status: string; }
+  const [supportMsgs, setSupportMsgs] = useState<SupportMsg[]>([]);
+  const [supportInput, setSupportInput] = useState("");
+  const [supportSubject, setSupportSubject] = useState("General Enquiry");
+  const [sendingSupport, setSendingSupport] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const unsubN = subscribeNotifications(profile.uid, setAppNotifications);
+    const unsubS = subscribeUserSupportMessages(profile.uid, (msgs) =>
+      setSupportMsgs(msgs as SupportMsg[]));
+    return () => { unsubN(); unsubS(); };
+  }, [profile?.uid]);
 
   const displayName = profile?.name || user?.displayName || "Guest";
   const phone = profile?.phone || user?.phoneNumber || "";
@@ -790,13 +816,52 @@ function ProfilePage() {
       </Sheet>
 
       {/* Notifications */}
-      <Sheet open={activeSheet === "notifications"} onOpenChange={(o) => !o && setActiveSheet(null)}>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-10">
+      <Sheet open={activeSheet === "notifications"} onOpenChange={(o) => {
+        if (!o && profile?.uid) markNotificationsRead(profile.uid);
+        if (!o) setActiveSheet(null);
+      }}>
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh] overflow-y-auto pb-10">
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" /> Notifications
+              {unreadCount > 0 && (
+                <span className="ml-auto text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-destructive text-white">
+                  {unreadCount} new
+                </span>
+              )}
             </SheetTitle>
           </SheetHeader>
+
+          {/* In-app notifications list */}
+          {appNotifications.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <p className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest px-1">Recent</p>
+              {appNotifications.map((n) => (
+                <div key={n.id} className={`flex gap-3 rounded-2xl p-3 border transition-colors ${n.read ? "bg-muted/30 border-border/30" : "bg-primary/5 border-primary/20"}`}>
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Bell className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${n.read ? "text-muted-foreground" : "text-foreground"}`}>{n.title}</p>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{n.body}</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      {new Date(n.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  {!n.read && <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {appNotifications.length === 0 && (
+            <div className="text-center py-6 mb-4">
+              <Bell className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm font-bold text-muted-foreground">No notifications yet</p>
+            </div>
+          )}
+
+          <p className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest px-1 mb-2">Preferences</p>
           <div className="space-y-1">
             {[
               { key: "delivery" as const, label: "Delivery Alerts", desc: "Live order and delivery updates" },
@@ -885,48 +950,109 @@ function ProfilePage() {
 
       {/* Help & Support */}
       <Sheet open={activeSheet === "help"} onOpenChange={(o) => !o && setActiveSheet(null)}>
-        <SheetContent side="bottom" className="rounded-t-3xl max-h-[88vh] overflow-y-auto pb-10">
-          <SheetHeader className="mb-4">
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[88vh] flex flex-col pb-0">
+          <SheetHeader className="mb-4 shrink-0">
             <SheetTitle className="flex items-center gap-2">
-              <HelpCircle className="h-5 w-5 text-primary" /> Help & Support
+              <MessageCircle className="h-5 w-5 text-primary" /> Help & Support
             </SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            {[
-              { icon: Phone, label: "Call Us", sub: "1800-AQUA-PURE", color: "bg-green-50 border-green-200 text-green-700" },
-              { icon: Mail, label: "Email", sub: "support@aquapure.in", color: "bg-blue-50 border-blue-200 text-blue-700" },
-            ].map((c, i) => (
-              <div key={i} className={`rounded-2xl border p-4 flex flex-col items-center gap-2 text-center ${c.color}`}>
-                <c.icon className="h-5 w-5" />
-                <div>
-                  <p className="text-xs font-extrabold">{c.label}</p>
-                  <p className="text-[10px] font-medium opacity-75">{c.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mb-3">FAQs</h3>
-          <div className="space-y-2">
-            {FAQ_ITEMS.map((faq, i) => (
-              <div key={i} className="bg-muted/40 rounded-2xl overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between p-4 text-left"
-                >
-                  <span className="text-sm font-bold pr-4">{faq.q}</span>
-                  {openFaq === i ? (
-                    <ChevronUp className="h-4 w-4 text-primary shrink-0" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                </button>
-                {openFaq === i && (
-                  <div className="px-4 pb-4 -mt-1">
-                    <p className="text-xs text-muted-foreground leading-relaxed">{faq.a}</p>
+          <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+            {/* Quick contact */}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: Phone, label: "Call Us", sub: "1800-AQUA-PURE", color: "bg-green-50 border-green-200 text-green-700" },
+                { icon: Mail, label: "Email", sub: "support@aquapure.in", color: "bg-blue-50 border-blue-200 text-blue-700" },
+              ].map((c, i) => (
+                <div key={i} className={`rounded-2xl border p-4 flex flex-col items-center gap-2 text-center ${c.color}`}>
+                  <c.icon className="h-5 w-5" />
+                  <div>
+                    <p className="text-xs font-extrabold">{c.label}</p>
+                    <p className="text-[10px] font-medium opacity-75">{c.sub}</p>
                   </div>
-                )}
+                </div>
+              ))}
+            </div>
+
+            {/* Message history */}
+            {supportMsgs.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">Your Messages</p>
+                {supportMsgs.map((msg) => (
+                  <div key={msg.id} className="space-y-1.5">
+                    <div className="flex justify-end">
+                      <div className="bg-primary text-white text-xs rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
+                        <p className="font-semibold text-[10px] text-white/70 mb-0.5">{msg.created_at ? new Date(msg.created_at).toLocaleDateString() : ""}</p>
+                        {msg.message}
+                      </div>
+                    </div>
+                    {msg.admin_reply && (
+                      <div className="flex justify-start">
+                        <div className="bg-muted text-foreground text-xs rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
+                          <p className="font-semibold text-[10px] text-muted-foreground mb-0.5">Support Team</p>
+                          {msg.admin_reply}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            {/* Send message form */}
+            <div className="bg-muted/40 rounded-2xl p-4 space-y-3">
+              <p className="text-xs font-extrabold text-foreground">Send us a message</p>
+              <select value={supportSubject} onChange={(e) => setSupportSubject(e.target.value)}
+                className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/25">
+                {["General Enquiry", "Order Issue", "Delivery Problem", "Payment Issue", "Subscription Help", "Other"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <textarea
+                value={supportInput}
+                onChange={(e) => setSupportInput(e.target.value)}
+                placeholder="Describe your issue or question…"
+                rows={3}
+                className="w-full bg-background border border-border/50 rounded-xl px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 resize-none"
+              />
+              <Button
+                disabled={sendingSupport || !supportInput.trim()}
+                onClick={async () => {
+                  if (!profile?.uid || !supportInput.trim()) return;
+                  setSendingSupport(true);
+                  const ok = await sendSupportMessage({
+                    userId: profile.uid,
+                    userName: profile.name || "User",
+                    userEmail: profile.email || "",
+                    subject: supportSubject,
+                    message: supportInput.trim(),
+                  });
+                  if (ok) setSupportInput("");
+                  setSendingSupport(false);
+                }}
+                className="w-full rounded-xl font-extrabold gap-2"
+              >
+                {sendingSupport ? "Sending…" : <><Send className="h-4 w-4" /> Send Message</>}
+              </Button>
+            </div>
+
+            {/* FAQs */}
+            <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">FAQs</h3>
+            <div className="space-y-2">
+              {FAQ_ITEMS.map((faq, i) => (
+                <div key={i} className="bg-muted/40 rounded-2xl overflow-hidden">
+                  <button onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between p-4 text-left">
+                    <span className="text-sm font-bold pr-4">{faq.q}</span>
+                    {openFaq === i ? <ChevronUp className="h-4 w-4 text-primary shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  </button>
+                  {openFaq === i && (
+                    <div className="px-4 pb-4 -mt-1">
+                      <p className="text-xs text-muted-foreground leading-relaxed">{faq.a}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </SheetContent>
       </Sheet>

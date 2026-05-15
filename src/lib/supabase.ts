@@ -590,6 +590,108 @@ export async function setUserActivePlan(uid: string, plan: ActivePlan | null): P
   await supabase!.from("profiles").update({ active_plan: plan }).eq("uid", uid);
 }
 
+// ─── Coupons ──────────────────────────────────────────────────────────────────
+
+export interface CouponResult {
+  valid: boolean;
+  discountType: "flat" | "percent";
+  discountValue: number;
+  discountAmount: number;
+  code: string;
+  error?: string;
+}
+
+export async function validateCoupon(code: string, orderTotal: number): Promise<CouponResult> {
+  const fail = (error: string): CouponResult => ({ valid: false, discountType: "flat", discountValue: 0, discountAmount: 0, code, error });
+  if (!supabase) return fail("Service unavailable");
+  const { data } = await supabase
+    .from("coupons")
+    .select("*")
+    .eq("code", code.toUpperCase().trim())
+    .eq("active", true)
+    .single();
+  if (!data) return fail("Invalid or expired coupon");
+  const row = data as { discount_type: string; discount_value: number; min_order: number; max_uses: number | null; used_count: number; expires_at: string | null };
+  if (row.expires_at && new Date(row.expires_at) < new Date()) return fail("Coupon has expired");
+  if (row.max_uses !== null && row.used_count >= row.max_uses) return fail("Coupon usage limit reached");
+  if (orderTotal < row.min_order) return fail(`Minimum order ₹${row.min_order} required`);
+  const discountAmount = row.discount_type === "percent"
+    ? +(orderTotal * row.discount_value / 100).toFixed(2)
+    : Math.min(row.discount_value, orderTotal);
+  return { valid: true, discountType: row.discount_type as "flat" | "percent", discountValue: row.discount_value, discountAmount, code: code.toUpperCase().trim() };
+}
+
+export async function incrementCouponUsage(code: string): Promise<void> {
+  if (!supabase) return;
+  await supabase.rpc("increment_coupon_usage", { coupon_code: code }).catch(() => {
+    // fallback: manual increment
+    supabase!.from("coupons").select("used_count").eq("code", code).single().then(({ data }) => {
+      if (data) supabase!.from("coupons").update({ used_count: (data as { used_count: number }).used_count + 1 }).eq("code", code);
+    });
+  });
+}
+
+// ─── Support Messages ─────────────────────────────────────────────────────────
+
+export async function sendSupportMessage(msg: {
+  userId: string; userName: string; userEmail: string; subject: string; message: string;
+}): Promise<boolean> {
+  if (!supabase) return false;
+  const { error } = await supabase.from("support_messages").insert({
+    user_id: msg.userId, user_name: msg.userName, user_email: msg.userEmail,
+    subject: msg.subject, message: msg.message,
+  });
+  return !error;
+}
+
+export function subscribeUserSupportMessages(
+  userId: string,
+  callback: (msgs: unknown[]) => void
+): () => void {
+  if (!supabase) { callback([]); return () => {}; }
+  const fetch = async () => {
+    const { data } = await supabase!.from("support_messages").select("*").eq("user_id", userId).order("created_at", { ascending: true });
+    callback(data ?? []);
+  };
+  fetch();
+  const ch = supabase.channel(`support-${userId}-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "support_messages", filter: `user_id=eq.${userId}` }, fetch)
+    .subscribe();
+  return () => { supabase!.removeChannel(ch); };
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export interface AppNotification {
+  id: string; userId: string; title: string; body: string;
+  type: string; read: boolean; data: Record<string, unknown>; createdAt: string;
+}
+
+export function subscribeNotifications(
+  userId: string,
+  callback: (notifs: AppNotification[]) => void
+): () => void {
+  if (!supabase) { callback([]); return () => {}; }
+  const fetch = async () => {
+    const { data } = await supabase!.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
+    callback((data ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string, userId: r.user_id as string, title: r.title as string,
+      body: r.body as string, type: r.type as string, read: r.read as boolean,
+      data: (r.data ?? {}) as Record<string, unknown>, createdAt: r.created_at as string,
+    })));
+  };
+  fetch();
+  const ch = supabase.channel(`notif-${userId}-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, fetch)
+    .subscribe();
+  return () => { supabase!.removeChannel(ch); };
+}
+
+export async function markNotificationsRead(userId: string): Promise<void> {
+  if (!supabase) return;
+  await supabase!.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+}
+
 /*
 ─────────────────────────────────────────────────────────────────────────────
 SQL SCHEMA — run once in Supabase SQL editor (Dashboard → SQL editor)

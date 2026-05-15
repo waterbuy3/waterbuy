@@ -129,11 +129,31 @@ function HomePage() {
   const featuredProducts = products.filter((p) => p.popular).slice(0, 4);
 
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
+  const [locationPincode, setLocationPincode] = useState<string>("");
+
+  useEffect(() => {
+    if (!deliverySettings?.areas?.length) return;
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const data = await res.json() as { address?: { postcode?: string } };
+          setLocationPincode(data?.address?.postcode ?? "");
+        } catch { /* geolocation available but reverse geocode failed */ }
+      },
+      () => { /* user denied or unavailable — silently ignore */ }
+    );
+  }, [deliverySettings?.areas?.length]);
+
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [hydration, setHydration] = useState(0);
   const [loggingWater, setLoggingWater] = useState(false);
-  const hydrationGoal = 2.0;
+  const hydrationGoal = 3.0;
   const hydrationPct = Math.min((hydration / hydrationGoal) * 100, 100);
 
   const onSelect = useCallback(() => {
@@ -157,14 +177,19 @@ function HomePage() {
     { label: "Bulk Order", icon: Package, color: "text-purple-500 bg-purple-50", to: "/products" },
   ];
 
-  // Compute area ETA from user's default address pincode
+  // Priority: saved default address > detected GPS location > first configured area
   const userPincode = profile?.addresses?.find((a) => a.isDefault)?.pincode ?? "";
-  const matchedArea = deliverySettings?.areas?.find((a) => a.pincode === userPincode);
+  const effectivePincode = userPincode || locationPincode;
+  const matchedArea = deliverySettings?.areas?.find((a) => a.pincode === effectivePincode);
   const areaEta = matchedArea?.etaMins ?? deliverySettings?.etaMins ?? appStats.avgDeliveryMin;
-  const areaName = matchedArea?.name ?? (userPincode ? `PIN ${userPincode}` : null);
+  const areaName =
+    matchedArea?.name ??
+    (effectivePincode ? `PIN ${effectivePincode}` : null) ??
+    deliverySettings?.areas?.[0]?.name ??
+    null;
   const isServiceable = !deliverySettings?.servicePincodes ||
-    !userPincode ||
-    deliverySettings.servicePincodes.split(/[\s,]+/).filter(Boolean).includes(userPincode);
+    !effectivePincode ||
+    deliverySettings.servicePincodes.split(/[\s,]+/).filter(Boolean).includes(effectivePincode);
 
   return (
     <div className="bg-muted/30 min-h-screen pb-8">
@@ -380,8 +405,8 @@ function HomePage() {
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-white/70 font-semibold">
                 {hydration >= hydrationGoal
-                  ? "Goal reached!"
-                  : `${(hydrationGoal - hydration).toFixed(2)}L more to go`}
+                  ? "🎉 Amazing! You've hit your 3L goal today!"
+                  : `${(hydrationGoal - hydration).toFixed(2)}L more to reach your goal`}
               </p>
               <button
                 disabled={loggingWater}
